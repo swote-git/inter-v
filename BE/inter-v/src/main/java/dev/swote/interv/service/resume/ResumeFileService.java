@@ -18,8 +18,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ResumeFileService {
 
-    private final AmazonS3 amazonS3;
-
+//    private final AmazonS3 amazonS3;
+//
     @Value("${aws.s3.bucket}")
     private String bucketName;
 
@@ -30,15 +30,16 @@ public class ResumeFileService {
         ObjectMetadata metadata = new ObjectMetadata();
         metadata.setContentLength(file.getSize());
         metadata.setContentType(file.getContentType());
-
-        amazonS3.putObject(new PutObjectRequest(
-                bucketName,
-                key,
-                file.getInputStream(),
-                metadata
-        ));
-
-        return amazonS3.getUrl(bucketName, key).toString();
+        // TODO(FIX_IT)
+//        amazonS3.putObject(new PutObjectRequest(
+//                bucketName,
+//                key,
+//                file.getInputStream(),
+//                metadata
+//        ));
+//
+//        return amazonS3.getUrl(bucketName, key).toString();
+        return key;
     }
 
     public String extractContent(MultipartFile file) throws IOException {

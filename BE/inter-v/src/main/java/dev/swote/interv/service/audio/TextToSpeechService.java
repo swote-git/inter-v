@@ -13,33 +13,33 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class TextToSpeechService {
-
-    private final AmazonPolly amazonPolly;
-    private final AudioStorageService audioStorageService;
-
-    @Value("${aws.s3.bucket}")
-    private String bucketName;
-
-    public String convertTextToSpeech(String text) {
-        try {
-            String outputKey = "interviews/tts/" + UUID.randomUUID() + ".mp3";
-
-            SynthesizeSpeechRequest synthesizeSpeechRequest = new SynthesizeSpeechRequest()
-                    .withOutputFormat(OutputFormat.Mp3)
-                    .withVoiceId(VoiceId.Joanna)
-                    .withText(text)
-                    .withEngine(Engine.Neural);
-
-            SynthesizeSpeechResult synthesizeSpeechResult =
-                    amazonPolly.synthesizeSpeech(synthesizeSpeechRequest);
-
-            // TODO(FIX this)
-            return String.valueOf(amazonPolly.synthesizeSpeech(
-                    synthesizeSpeechRequest
-            ));
-        } catch (Exception e) {
-            log.error("Failed to convert text to speech", e);
-            throw new RuntimeException("Failed to convert text to speech", e);
-        }
-    }
+//
+//    private final AmazonPolly amazonPolly;
+//    private final AudioStorageService audioStorageService;
+//
+//    @Value("${aws.s3.bucket}")
+//    private String bucketName;
+//
+//    public String convertTextToSpeech(String text) {
+//        try {
+//            String outputKey = "interviews/tts/" + UUID.randomUUID() + ".mp3";
+//
+//            SynthesizeSpeechRequest synthesizeSpeechRequest = new SynthesizeSpeechRequest()
+//                    .withOutputFormat(OutputFormat.Mp3)
+//                    .withVoiceId(VoiceId.Joanna)
+//                    .withText(text)
+//                    .withEngine(Engine.Neural);
+//
+//            SynthesizeSpeechResult synthesizeSpeechResult =
+//                    amazonPolly.synthesizeSpeech(synthesizeSpeechRequest);
+//
+//            // TODO(FIX this)
+//            return String.valueOf(amazonPolly.synthesizeSpeech(
+//                    synthesizeSpeechRequest
+//            ));
+//        } catch (Exception e) {
+//            log.error("Failed to convert text to speech", e);
+//            throw new RuntimeException("Failed to convert text to speech", e);
+//        }
+//    }
 }

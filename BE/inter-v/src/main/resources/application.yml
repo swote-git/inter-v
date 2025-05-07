@@ -41,7 +41,7 @@ aws:
 llm:
   api:
     url: https://api.openai.com/v1
-    key: ${OPENAI_API_KEY}
+    key: https://api.openai.com/v1
 
 public-data-contest:
   security:

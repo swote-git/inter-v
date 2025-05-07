@@ -29,7 +29,8 @@ public interface QuestionRepository extends JpaRepository<Question, Integer> {
             Pageable pageable
     );
 
-    List<Question> findRandomQuestionsByTypeAndCount(QuestionType type, int count);
+    // Remove this method - it's causing the error
+    // List<Question> findRandomQuestionsByTypeAndCount(QuestionType type, int count);
 
     @Query(value = "SELECT * FROM tb_question q WHERE q.type = :type ORDER BY RAND() LIMIT :count", nativeQuery = true)
     List<Question> findRandomQuestions(@Param("type") String type, @Param("count") int count);
