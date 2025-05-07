@@ -1,6 +1,9 @@
 package dev.swote.interv.config;
 
 import dev.swote.interv.domain.user.repository.UserRepository;
+import dev.swote.interv.interceptor.CurrentUserArgumentResolver;
+import dev.swote.interv.interceptor.CurrentUserInterceptor;
+import dev.swote.interv.interceptor.RequestInfoInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;

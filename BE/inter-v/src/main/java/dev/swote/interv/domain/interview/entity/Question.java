@@ -1,6 +1,7 @@
 package dev.swote.interv.domain.interview.entity;
 
 import dev.swote.interv.domain.BaseEntity;
+import dev.swote.interv.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 

@@ -1,8 +1,10 @@
 package dev.swote.interv.config;
 
+import dev.swote.interv.domain.core.ResponseWrapper;
+import dev.swote.interv.exception.BaseException;
 import dev.swote.interv.util.MessageConverter;
+import jakarta.validation.UnexpectedTypeException;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.catalina.filters.AddDefaultCharsetFilter;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -18,7 +20,7 @@ import java.util.Map;
 @RestControllerAdvice
 public class CommonControllerAdvice {
     @ExceptionHandler(BaseException.class)
-    public ResponseEntity<AddDefaultCharsetFilter.ResponseWrapper> baseExceptionHandler(BaseException e) {
+    public ResponseEntity<ResponseWrapper> baseExceptionHandler(BaseException e) {
         log.error("On ControllerAdvice: ", e);
 
         return ResponseEntity.status(e.getHttpStatus())
@@ -30,7 +32,7 @@ public class CommonControllerAdvice {
     }
 
     @ExceptionHandler(NoSuchAlgorithmException.class)
-    public ResponseEntity<AddDefaultCharsetFilter.ResponseWrapper> NoSuchAlgorithmExceptionHandler(){
+    public ResponseEntity<ResponseWrapper> NoSuchAlgorithmExceptionHandler(){
         log.error("Server settings errors: In the com.pub.data.util.security.PasswordCoder, "
                 + "check for the MessageDigest.getInstance parameter in the hash method");
 
@@ -40,14 +42,6 @@ public class CommonControllerAdvice {
                                 .message(MessageConverter.getMessage("error.common.internalServerErrors"))
                                 .build()
                 );
-    }
-
-    @ExceptionHandler(GuidelinesNotFoundException.class)
-    public ResponseEntity<AddDefaultCharsetFilter.ResponseWrapper> GuidelinesNotFoundExceptionHandler(GuidelinesNotFoundException e){
-        final ResponseEntity<AddDefaultCharsetFilter.ResponseWrapper> response = baseExceptionHandler(e);
-        log.error("Not Found Guideline with: " + e.getPointTypeCode().getCodeName());
-
-        return response;
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

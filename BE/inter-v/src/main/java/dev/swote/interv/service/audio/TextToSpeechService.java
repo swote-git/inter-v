@@ -33,10 +33,10 @@ public class TextToSpeechService {
             SynthesizeSpeechResult synthesizeSpeechResult =
                     amazonPolly.synthesizeSpeech(synthesizeSpeechRequest);
 
-            return amazonPolly.getPresignedSynthesizeSpeechUrl(
-                    new GetSpeechSynthesisTaskRequest()
-                            .withTaskId(synthesizeSpeechResult.getTaskId())
-            ).toString();
+            // TODO(FIX this)
+            return String.valueOf(amazonPolly.synthesizeSpeech(
+                    synthesizeSpeechRequest
+            ));
         } catch (Exception e) {
             log.error("Failed to convert text to speech", e);
             throw new RuntimeException("Failed to convert text to speech", e);
