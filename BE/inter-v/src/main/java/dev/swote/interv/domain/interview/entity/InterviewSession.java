@@ -40,6 +40,9 @@ public class InterviewSession extends BaseEntity {
     private InterviewType type;
 
     @Enumerated(EnumType.STRING)
+    private InterviewMode mode;
+
+    @Enumerated(EnumType.STRING)
     private InterviewStatus status;
 
     private LocalDateTime startTime;
@@ -48,6 +51,14 @@ public class InterviewSession extends BaseEntity {
 
     private String shareUrl;
 
+    private Integer questionCount;
+
     @OneToMany(mappedBy = "interviewSession", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Question> questions = new ArrayList<>();
+
+    // Current question index (for tracking progress)
+    private Integer currentQuestionIndex;
+
+    // Total time in seconds
+    private Integer totalTimeSeconds;
 }

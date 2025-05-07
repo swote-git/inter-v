@@ -2,8 +2,11 @@ package dev.swote.interv.domain.user.entity;
 
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
 
 import dev.swote.interv.domain.BaseEntity;
+import dev.swote.interv.domain.interview.entity.Question;
 import dev.swote.interv.domain.user.VO.RegisterVO;
 import dev.swote.interv.util.security.PasswordEncoder;
 import jakarta.persistence.*;
@@ -43,6 +46,13 @@ public class User extends BaseEntity {
 
     private LocalDate birthDate;
 
+    @ManyToMany
+    @JoinTable(
+            name = "user_favorite_questions",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "question_id")
+    )
+    private Set<Question> favoritedQuestions = new HashSet<>();
 
     public static User of(RegisterVO registerVO, PasswordEncoder encoder) throws NoSuchAlgorithmException {
         final String salt = encoder.getNextSalt();
@@ -54,7 +64,7 @@ public class User extends BaseEntity {
                 .nickname(registerVO.getNickname())
                 .phoneNumber(registerVO.getPhoneNumber())
                 .birthDate(registerVO.getBirthDate())
+                .favoritedQuestions(new HashSet<>())
                 .build();
     }
-
 }

@@ -23,6 +23,11 @@ repositories {
     mavenCentral()
 }
 
+ext {
+    guavaVersion = '31.1-jre'
+    awsSdkVersion = '2.20.56'
+}
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
@@ -37,7 +42,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springdoc:springdoc-openapi-starter-common:2.8.6'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6'
-    implementation 'com.google.guava:guava:${guavaVersion}'
+    implementation "com.google.guava:guava:${guavaVersion}"
     implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
     implementation 'com.querydsl:querydsl-apt:5.1.0:jakarta'
 
@@ -57,6 +62,24 @@ dependencies {
     implementation 'org.apache.httpcomponents.client5:httpclient5'
     implementation 'com.googlecode.json-simple:json-simple:1.1.1'
     implementation 'org.springdoc:springdoc-openapi-data-rest:1.8.0'
+
+    // AWS SDK - using v1 for compatibility with the existing AwsConfig class
+    implementation 'com.amazonaws:aws-java-sdk-s3:1.12.477'
+    implementation 'com.amazonaws:aws-java-sdk-polly:1.12.477'
+    implementation 'com.amazonaws:aws-java-sdk-transcribe:1.12.477'
+
+    // Jackson for JSON processing
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+
+    // WebSocket for real-time communication (optional for interview sessions)
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+    // For scheduled tasks (optional for background processing)
+    implementation 'org.springframework.boot:spring-boot-starter-quartz'
+
+    // For caching (optional for improving performance)
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.5'
 }
 
 tasks.named('test') {

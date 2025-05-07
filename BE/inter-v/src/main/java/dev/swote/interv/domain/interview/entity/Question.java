@@ -4,6 +4,9 @@ import dev.swote.interv.domain.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.HashSet;
+import java.util.Set;
+
 @Entity
 @Getter
 @Setter
@@ -29,6 +32,15 @@ public class Question extends BaseEntity {
 
     private Integer sequence;
 
+    private Integer difficultyLevel;
+
+    private String category;
+
+    private String subCategory;
+
     @OneToOne(mappedBy = "question", cascade = CascadeType.ALL)
     private Answer answer;
+
+    @ManyToMany(mappedBy = "favoritedQuestions")
+    private Set<User> favoritedByUsers = new HashSet<>();
 }

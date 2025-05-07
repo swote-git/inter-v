@@ -1,10 +1,7 @@
 package dev.swote.interv.controller;
 
 import dev.swote.interv.config.CommonResponse;
-import dev.swote.interv.domain.interview.entity.Answer;
-import dev.swote.interv.domain.interview.entity.InterviewSession;
-import dev.swote.interv.domain.interview.entity.InterviewType;
-import dev.swote.interv.domain.interview.entity.Question;
+import dev.swote.interv.domain.interview.entity.*;
 import dev.swote.interv.interceptor.CurrentUser;
 import dev.swote.interv.service.interview.InterviewService;
 import lombok.RequiredArgsConstructor;
@@ -53,13 +50,11 @@ public class InterviewController {
     @PostMapping
     public ResponseEntity<CommonResponse<InterviewSession>> createInterview(
             CurrentUser currentUser,
-            @RequestBody CreateInterviewRequest request
+            @RequestBody InterviewService.CreateInterviewRequest request
     ) {
         InterviewSession interview = interviewService.createInterview(
                 currentUser.id(),
-                request.getResumeId(),
-                request.getPositionId(),
-                request.getType()
+                request
         );
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(CommonResponse.ok(interview));
@@ -87,6 +82,14 @@ public class InterviewController {
     ) {
         List<Question> questions = interviewService.getInterviewQuestions(interviewId);
         return ResponseEntity.ok(CommonResponse.ok(questions));
+    }
+
+    @GetMapping("/{interviewId}/next-question")
+    public ResponseEntity<CommonResponse<Question>> getNextQuestion(
+            @PathVariable Integer interviewId
+    ) {
+        Question question = interviewService.getNextQuestion(interviewId);
+        return ResponseEntity.ok(CommonResponse.ok(question));
     }
 
     @PostMapping("/questions/{questionId}/answer")
@@ -125,35 +128,48 @@ public class InterviewController {
         return ResponseEntity.ok(CommonResponse.ok(shareUrl));
     }
 
-    public static class CreateInterviewRequest {
-        private Integer resumeId;
-        private Integer positionId;
-        private InterviewType type;
+    @PostMapping("/{interviewId}/time")
+    public ResponseEntity<Void> updateInterviewTime(
+            @PathVariable Integer interviewId,
+            @RequestBody UpdateTimeRequest request
+    ) {
+        interviewService.updateInterviewTime(interviewId, request.getTimeInSeconds());
+        return ResponseEntity.ok().build();
+    }
 
-        // Getters and setters
-        public Integer getResumeId() {
-            return resumeId;
-        }
+    @GetMapping("/questions/search")
+    public ResponseEntity<CommonResponse<Page<Question>>> searchQuestions(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) Integer difficultyLevel,
+            @RequestParam(required = false) QuestionType type,
+            @RequestParam(required = false) String keyword,
+            Pageable pageable
+    ) {
+        Page<Question> questions = interviewService.searchQuestions(
+                category,
+                difficultyLevel,
+                type,
+                keyword,
+                pageable
+        );
+        return ResponseEntity.ok(CommonResponse.ok(questions));
+    }
 
-        public void setResumeId(Integer resumeId) {
-            this.resumeId = resumeId;
-        }
+    @PostMapping("/questions/{questionId}/favorite")
+    public ResponseEntity<Void> toggleFavoriteQuestion(
+            CurrentUser currentUser,
+            @PathVariable Integer questionId
+    ) {
+        interviewService.toggleFavoriteQuestion(currentUser.id(), questionId);
+        return ResponseEntity.ok().build();
+    }
 
-        public Integer getPositionId() {
-            return positionId;
-        }
-
-        public void setPositionId(Integer positionId) {
-            this.positionId = positionId;
-        }
-
-        public InterviewType getType() {
-            return type;
-        }
-
-        public void setType(InterviewType type) {
-            this.type = type;
-        }
+    @GetMapping("/questions/favorites")
+    public ResponseEntity<CommonResponse<List<Question>>> getFavoriteQuestions(
+            CurrentUser currentUser
+    ) {
+        List<Question> questions = interviewService.getFavoriteQuestions(currentUser.id());
+        return ResponseEntity.ok(CommonResponse.ok(questions));
     }
 
     public static class SubmitAnswerRequest {
@@ -166,6 +182,18 @@ public class InterviewController {
 
         public void setContent(String content) {
             this.content = content;
+        }
+    }
+
+    public static class UpdateTimeRequest {
+        private Integer timeInSeconds;
+
+        public Integer getTimeInSeconds() {
+            return timeInSeconds;
+        }
+
+        public void setTimeInSeconds(Integer timeInSeconds) {
+            this.timeInSeconds = timeInSeconds;
         }
     }
 }

@@ -4,6 +4,8 @@ import dev.swote.interv.config.CommonResponse;
 import dev.swote.interv.domain.resume.entity.Resume;
 import dev.swote.interv.interceptor.CurrentUser;
 import dev.swote.interv.service.resume.ResumeService;
+import dev.swote.interv.service.resume.ResumeService.CreateResumeRequest;
+import dev.swote.interv.service.resume.ResumeService.UpdateResumeRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -44,11 +46,7 @@ public class ResumeController {
             CurrentUser currentUser,
             @RequestBody CreateResumeRequest request
     ) {
-        Resume resume = resumeService.createResume(
-                currentUser.id(),
-                request.getTitle(),
-                request.getContent()
-        );
+        Resume resume = resumeService.createResume(currentUser.id(), request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(CommonResponse.ok(resume));
     }
@@ -73,11 +71,7 @@ public class ResumeController {
             @PathVariable Integer resumeId,
             @RequestBody UpdateResumeRequest request
     ) {
-        Resume resume = resumeService.updateResume(
-                resumeId,
-                request.getTitle(),
-                request.getContent()
-        );
+        Resume resume = resumeService.updateResume(resumeId, request);
         return ResponseEntity.ok(CommonResponse.ok(resume));
     }
 
@@ -87,49 +81,5 @@ public class ResumeController {
     ) {
         resumeService.deleteResume(resumeId);
         return ResponseEntity.noContent().build();
-    }
-
-    public static class CreateResumeRequest {
-        private String title;
-        private String content;
-
-        // Getters and setters
-        public String getTitle() {
-            return title;
-        }
-
-        public void setTitle(String title) {
-            this.title = title;
-        }
-
-        public String getContent() {
-            return content;
-        }
-
-        public void setContent(String content) {
-            this.content = content;
-        }
-    }
-
-    public static class UpdateResumeRequest {
-        private String title;
-        private String content;
-
-        // Getters and setters
-        public String getTitle() {
-            return title;
-        }
-
-        public void setTitle(String title) {
-            this.title = title;
-        }
-
-        public String getContent() {
-            return content;
-        }
-
-        public void setContent(String content) {
-            this.content = content;
-        }
     }
 }
