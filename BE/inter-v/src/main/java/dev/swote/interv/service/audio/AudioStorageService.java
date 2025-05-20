@@ -17,30 +17,30 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AudioStorageService {
 
-//    private final AmazonS3 amazonS3;
-//
-//    @Value("${aws.s3.bucket}")
-//    private String bucketName;
-//
-//    public String storeAudioFile(MultipartFile file) {
-//        try {
-//            String key = "interviews/audio/" + UUID.randomUUID() + ".wav";
-//
-//            ObjectMetadata metadata = new ObjectMetadata();
-//            metadata.setContentLength(file.getSize());
-//            metadata.setContentType(file.getContentType());
-//
-//            amazonS3.putObject(new PutObjectRequest(
-//                    bucketName,
-//                    key,
-//                    file.getInputStream(),
-//                    metadata
-//            ));
-//
-//            return amazonS3.getUrl(bucketName, key).toString();
-//        } catch (IOException e) {
-//            log.error("Failed to store audio file", e);
-//            throw new RuntimeException("Failed to store audio file", e);
-//        }
-//    }
+    private final AmazonS3 amazonS3;
+
+    @Value("${aws.s3.bucket}")
+    private String bucketName;
+
+    public String storeAudioFile(MultipartFile file) {
+        try {
+            String key = "interviews/audio/" + UUID.randomUUID() + ".wav";
+
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentLength(file.getSize());
+            metadata.setContentType(file.getContentType());
+
+            amazonS3.putObject(new PutObjectRequest(
+                    bucketName,
+                    key,
+                    file.getInputStream(),
+                    metadata
+            ));
+
+            return amazonS3.getUrl(bucketName, key).toString();
+        } catch (IOException e) {
+            log.error("Failed to store audio file", e);
+            throw new RuntimeException("Failed to store audio file", e);
+        }
+    }
 }

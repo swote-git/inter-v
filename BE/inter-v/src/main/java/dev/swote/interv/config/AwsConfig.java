@@ -16,39 +16,39 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class AwsConfig {
 
-//    @Value("${aws.credentials.accessKey}")
-//    private String accessKey;
-//
-//    @Value("${aws.credentials.secretKey}")
-//    private String secretKey;
-//
-//    @Value("${aws.region}")
-//    private String region;
-//
-//    @Bean
-//    public AmazonS3 amazonS3() {
-//        BasicAWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
-//        return AmazonS3ClientBuilder.standard()
-//                .withCredentials(new AWSStaticCredentialsProvider(credentials))
-//                .withRegion(Regions.fromName(region))
-//                .build();
-//    }
-//
-//    @Bean
-//    public AmazonPolly amazonPolly() {
-//        BasicAWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
-//        return AmazonPollyClientBuilder.standard()
-//                .withCredentials(new AWSStaticCredentialsProvider(credentials))
-//                .withRegion(Regions.fromName(region))
-//                .build();
-//    }
-//
-//    @Bean
-//    public AmazonTranscribe amazonTranscribe() {
-//        BasicAWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
-//        return AmazonTranscribeClientBuilder.standard()
-//                .withCredentials(new AWSStaticCredentialsProvider(credentials))
-//                .withRegion(Regions.fromName(region))
-//                .build();
-//    }
+    @Value("${aws.credentials.accessKey}")
+    private String accessKey;
+
+    @Value("${aws.credentials.secretKey}")
+    private String secretKey;
+
+    @Value("${aws.region}")
+    private String region;
+
+    @Bean
+    public AmazonS3 amazonS3() {
+        BasicAWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
+        return AmazonS3ClientBuilder.standard()
+                .withCredentials(new AWSStaticCredentialsProvider(credentials))
+                .withRegion(Regions.fromName(region))
+                .build();
+    }
+
+    @Bean
+    public AmazonPolly amazonPolly() {
+        BasicAWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
+        return AmazonPollyClientBuilder.standard()
+                .withCredentials(new AWSStaticCredentialsProvider(credentials))
+                .withRegion(Regions.fromName(region))
+                .build();
+    }
+
+    @Bean
+    public AmazonTranscribe amazonTranscribe() {
+        BasicAWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
+        return AmazonTranscribeClientBuilder.standard()
+                .withCredentials(new AWSStaticCredentialsProvider(credentials))
+                .withRegion(Regions.fromName(region))
+                .build();
+    }
 }

@@ -38,10 +38,10 @@ public class InterviewService {
     private final UserRepository userRepository;
     private final ResumeRepository resumeRepository;
     private final PositionRepository positionRepository;
-//    private final LlmService llmService;
-//    private final AudioStorageService audioStorageService;
-//    private final TextToSpeechService textToSpeechService;
-//    private final SpeechToTextService speechToTextService;
+    private final LlmService llmService;
+    private final AudioStorageService audioStorageService;
+    private final TextToSpeechService textToSpeechService;
+    private final SpeechToTextService speechToTextService;
 
     @Transactional(readOnly = true)
     public Page<InterviewSession> getUserInterviews(Integer userId, Pageable pageable) {
@@ -162,8 +162,7 @@ public class InterviewService {
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new RuntimeException("Question not found"));
 
-        // TODO(FIX IT)
-//        Answer answer = llmService.provideFeedback(question, answerContent);
+        Answer answer = llmService.provideFeedback(question, answerContent);
         Answer answer = new Answer();
 
         return answerRepository.save(answer);
@@ -174,18 +173,17 @@ public class InterviewService {
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new RuntimeException("Question not found"));
 
-        // TODO(FIX IT)
-//
-//        String audioFilePath = audioStorageService.storeAudioFile(audioFile);
-//
-//        // Start transcription job
-//        String jobName = speechToTextService.startTranscriptionJob(audioFilePath);
-//
-//        // In a real application, you'd use a job queue to poll for the result
-//        String transcriptionUrl = speechToTextService.getTranscriptionResult(jobName);
-//        String transcribedText = speechToTextService.extractTranscribedText(transcriptionUrl);
-//
-//        Answer answer = llmService.provideFeedback(question, transcribedText);
+
+        String audioFilePath = audioStorageService.storeAudioFile(audioFile);
+
+        // Start transcription job
+        String jobName = speechToTextService.startTranscriptionJob(audioFilePath);
+
+        // In a real application, you'd use a job queue to poll for the result
+        String transcriptionUrl = speechToTextService.getTranscriptionResult(jobName);
+        String transcribedText = speechToTextService.extractTranscribedText(transcriptionUrl);
+
+        Answer answer = llmService.provideFeedback(question, transcribedText);
 //        answer.setAudioFilePath(audioFilePath);
         Answer answer = new Answer();
         return answerRepository.save(answer);
