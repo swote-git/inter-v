@@ -163,7 +163,6 @@ public class InterviewService {
                 .orElseThrow(() -> new RuntimeException("Question not found"));
 
         Answer answer = llmService.provideFeedback(question, answerContent);
-        Answer answer = new Answer();
 
         return answerRepository.save(answer);
     }
@@ -184,8 +183,7 @@ public class InterviewService {
         String transcribedText = speechToTextService.extractTranscribedText(transcriptionUrl);
 
         Answer answer = llmService.provideFeedback(question, transcribedText);
-//        answer.setAudioFilePath(audioFilePath);
-        Answer answer = new Answer();
+        answer.setAudioFilePath(audioFilePath);
         return answerRepository.save(answer);
     }
 

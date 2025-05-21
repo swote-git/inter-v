@@ -1,79 +1,81 @@
-# application.yml
+# application.yml - AWS 배포용 통합 설정
 spring:
-  profiles:
-    active: local
-  application:
-    name: inter-v
   datasource:
-    url: jdbc:mysql://localhost:3306/interv?serverTimezone=UTC&characterEncoding=UTF-8
-    username: root
-    password: root
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:interv}?serverTimezone=UTC&characterEncoding=UTF-8&useSSL=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 30000
+      connection-timeout: 30000
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${JPA_DDL_AUTO:update}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
-        show_sql: true
-        format_sql: true
+        show_sql: ${SHOW_SQL:false}
+        format_sql: ${FORMAT_SQL:false}
+  security:
+    oauth2:
+      client:
+        registration:
+          cognito:
+            client-id: ${COGNITO_CLIENT_ID:default-client-id}
+            client-secret: ${COGNITO_CLIENT_SECRET:default-client-secret}
+            scope: openid, email, phone
+            redirect-uri: ${COGNITO_REDIRECT_URI:http://localhost:8080/login/oauth2/code/cognito}
+            client-name: Inter-V Cognito
+            authorization-grant-type: authorization_code
+        provider:
+          cognito:
+            issuer-uri: https://cognito-idp.${AWS_REGION:ap-northeast-2}.amazonaws.com/${COGNITO_USER_POOL_ID:pool-id}
+            user-name-attribute: email
   servlet:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
 
+# AWS 서비스 설정
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+  credentials:
+    accessKey: ${AWS_ACCESS_KEY:access-key}
+    secretKey: ${AWS_SECRET_KEY:secret-key}
+  s3:
+    bucket: ${S3_BUCKET_NAME:interv-storage}
+  cognito:
+    region: ${AWS_REGION:ap-northeast-2}
+    user-pool-id: ${COGNITO_USER_POOL_ID:pool-id}
+    client-id: ${COGNITO_CLIENT_ID:client-id}
+    client-secret: ${COGNITO_CLIENT_SECRET:client-secret}
+    logout-redirect-uri: ${COGNITO_LOGOUT_REDIRECT_URI:http://localhost:8080/}
+
+# 서버 설정
 server:
-  port: 8080
+  port: ${PORT:8080}
   servlet:
     context-path: /
   compression:
     enabled: true
     mime-types: application/json,application/xml,text/html,text/xml,text/plain
 
-aws:
-  region: ap-northeast-2
-  credentials:
-    accessKey: ${AWS_ACCESS_KEY}
-    secretKey: ${AWS_SECRET_KEY}
-  s3:
-    bucket: interv-storage
-
-llm:
-  api:
-    url: https://api.openai.com/v1
-    key: https://api.openai.com/v1
-
+# 보안 설정
 public-data-contest:
   security:
     saltSize: 16
 
----
-spring:
-  config:
-    activate:
-      on-profile: dev
-  datasource:
-    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?serverTimezone=UTC&characterEncoding=UTF-8
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+# LLM API 설정
+llm:
+  api:
+    url: ${LLM_API_URL:https://api.openai.com/v1}
+    key: ${LLM_API_KEY:your-api-key}
 
-server:
-  port: ${PORT:8080}
-
----
-spring:
-  config:
-    activate:
-      on-profile: prod
-  datasource:
-    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?serverTimezone=UTC&characterEncoding=UTF-8
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
-  jpa:
-    properties:
-      hibernate:
-        show_sql: false
-        format_sql: false
-
-server:
-  port: ${PORT:8080}
+# 로깅 설정
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    dev.swote.interv: ${LOG_LEVEL_APP:INFO}
+    org.springframework: ${LOG_LEVEL_SPRING:WARN}

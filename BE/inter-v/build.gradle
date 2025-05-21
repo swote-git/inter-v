@@ -100,6 +100,8 @@ dependencies {
     implementation 'com.github.ben-manes.caffeine:caffeine:3.1.5'
 
     implementation 'com.h2database:h2:2.2.224'
+    // https://mvnrepository.com/artifact/com.mysql/mysql-connector-j
+    implementation 'com.mysql:mysql-connector-j:9.3.0'
 }
 
 tasks.named('test') {
