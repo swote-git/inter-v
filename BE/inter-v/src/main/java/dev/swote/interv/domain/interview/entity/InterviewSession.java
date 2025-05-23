@@ -1,5 +1,6 @@
 package dev.swote.interv.domain.interview.entity;
-
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import dev.swote.interv.domain.BaseEntity;
 import dev.swote.interv.domain.position.entity.Position;
 import dev.swote.interv.domain.resume.entity.Resume;
@@ -53,7 +54,9 @@ public class InterviewSession extends BaseEntity {
 
     private Integer questionCount;
 
+    @Builder.Default
     @OneToMany(mappedBy = "interviewSession", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
     private List<Question> questions = new ArrayList<>();
 
     // Current question index (for tracking progress)
