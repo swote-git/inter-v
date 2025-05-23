@@ -1,5 +1,5 @@
 package dev.swote.interv.service.interview;
-
+import lombok.extern.slf4j.Slf4j;
 import dev.swote.interv.domain.interview.entity.*;
 import dev.swote.interv.domain.interview.repository.AnswerRepository;
 import dev.swote.interv.domain.interview.repository.InterviewSessionRepository;
@@ -28,6 +28,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class InterviewService {
@@ -39,9 +40,15 @@ public class InterviewService {
     private final ResumeRepository resumeRepository;
     private final PositionRepository positionRepository;
     private final LlmService llmService;
+<<<<<<< HEAD
     private final AudioStorageService audioStorageService;
     private final TextToSpeechService textToSpeechService;
     private final SpeechToTextService speechToTextService;
+=======
+//    private final AudioStorageService audioStorageService;
+//    private final TextToSpeechService textToSpeechService;
+//    private final SpeechToTextService speechToTextService;
+>>>>>>> 1763e46 (feat: RestTemplate timeout 설정 등 로컬 변경사항 전체 업로드)
 
     @Transactional(readOnly = true)
     public Page<InterviewSession> getUserInterviews(Integer userId, Pageable pageable) {
@@ -64,27 +71,43 @@ public class InterviewService {
 
     @Transactional
     public InterviewSession createInterview(Integer userId, CreateInterviewRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
+        // ✅ 유저 처리 (DB 없을 경우 더미 유저 생성)
+        User user = userRepository.findById(userId).orElseGet(() -> {
+            log.warn("User not found in DB (id: {}). Using dummy user for test.", userId);
+            User dummyUser = new User();
+            dummyUser.setName("Dummy User");
+            dummyUser.setEmail("dummy@example.com");
+            return userRepository.save(dummyUser);
+        });
+    
         Resume resume = null;
         if (request.getResumeId() != null) {
-            resume = resumeRepository.findById(request.getResumeId())
-                    .orElseThrow(() -> new RuntimeException("Resume not found"));
+            resume = resumeRepository.findById(request.getResumeId()).orElseGet(() -> {
+                log.warn("Resume not found (id: {}). Using dummy resume.", request.getResumeId());
+                Resume dummyResume = new Resume();
+                dummyResume.setContent("더미 이력서 내용입니다.");
+                return resumeRepository.save(dummyResume);
+            });
         }
-
+    
+        // ✅ 포지션 처리 (DB 없을 경우 더미 포지션 생성)
         Position position = null;
         if (request.getPositionId() != null) {
-            position = positionRepository.findById(request.getPositionId())
-                    .orElseThrow(() -> new RuntimeException("Position not found"));
+            position = positionRepository.findById(request.getPositionId()).orElseGet(() -> {
+                log.warn("Position not found (id: {}). Using dummy position.", request.getPositionId());
+                Position dummyPosition = new Position();
+                dummyPosition.setName("더미 포지션");
+                return positionRepository.save(dummyPosition);
+            });
         }
-
+    
+        // ✅ 세션 생성
         String shareUrl = UUID.randomUUID().toString();
-
+    
         InterviewSession interviewSession = InterviewSession.builder()
-                .user(user)
-                .resume(resume)
-                .position(position)
+                .user(userRepository.existsById(user.getId()) ? user : null)
+                .resume(resume != null && resume.getId() != null && resumeRepository.existsById(resume.getId()) ? resume : null)
+                .position(position != null && position.getId() != null && positionRepository.existsById(position.getId()) ? position : null)
                 .type(request.getType())
                 .mode(request.getMode())
                 .status(InterviewStatus.SCHEDULED)
@@ -94,31 +117,27 @@ public class InterviewService {
                 .currentQuestionIndex(0)
                 .totalTimeSeconds(0)
                 .build();
-
+    
         interviewSession = interviewSessionRepository.save(interviewSession);
-
-        // Generate or select questions based on mode and type
+    
+        // ✅ 질문 생성 또는 조회
         List<Question> questions;
 
         if (request.getQuestionIds() != null && !request.getQuestionIds().isEmpty()) {
-            // If specific questions were selected
             questions = request.getQuestionIds().stream()
                     .map(id -> questionRepository.findById(id)
                             .orElseThrow(() -> new RuntimeException("Question not found: " + id)))
                     .collect(Collectors.toList());
         } else if (InterviewMode.PRACTICE.equals(request.getMode())) {
-            // For practice mode, use predefined questions from the database
             questions = questionRepository.findRandomQuestions(
                     request.getType().toString(),
                     request.getQuestionCount());
         } else {
-            // For real mode, generate questions based on resume and position
-            // TODO(FIX_IT)
-            //questions = llmService.generateInterviewQuestions(resume, position, request.getQuestionCount());
-            questions = questionRepository.findAll();
+            // 실전 모드: LLM 서버 연동 혹은 임시 전체 질문
+            questions = llmService.generateInterviewQuestions(resume, position, request.getQuestionCount());
         }
 
-        // Set sequence numbers and save questions
+        // ✅ 질문 순서 및 세션 설정
         int sequence = 1;
         for (Question question : questions) {
             question.setInterviewSession(interviewSession);
@@ -126,6 +145,11 @@ public class InterviewService {
             questionRepository.save(question);
         }
 
+        // ✅ 질문 리스트를 세션에 할당 (직렬화에 필요)
+        interviewSession.setUser(user);
+        interviewSession.setResume(resume);
+        interviewSession.setPosition(position);
+        interviewSession.setQuestions(questions);
         return interviewSession;
     }
 
@@ -336,5 +360,17 @@ public class InterviewService {
         public void setQuestionIds(List<Integer> questionIds) {
             this.questionIds = questionIds;
         }
+    }
+
+    public User getUserById(Integer id) {
+        return userRepository.findById(id).orElse(null);
+    }
+
+    public Resume getResumeById(Integer id) {
+        return resumeRepository.findById(id).orElse(null);
+    }
+
+    public Position getPositionById(Integer id) {
+        return positionRepository.findById(id).orElse(null);
     }
 }

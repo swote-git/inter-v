@@ -1,5 +1,6 @@
 package dev.swote.interv.domain.interview.entity;
-
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import dev.swote.interv.domain.BaseEntity;
 import dev.swote.interv.domain.user.entity.User;
 import jakarta.persistence.*;
@@ -23,6 +24,7 @@ public class Question extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "interview_session_id")
+    @JsonBackReference
     private InterviewSession interviewSession;
 
     @Column(columnDefinition = "TEXT")
@@ -43,5 +45,6 @@ public class Question extends BaseEntity {
     private Answer answer;
 
     @ManyToMany(mappedBy = "favoritedQuestions")
+    @Builder.Default
     private Set<User> favoritedByUsers = new HashSet<>();
 }

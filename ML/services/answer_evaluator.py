@@ -7,18 +7,21 @@ from openai import OpenAI
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def evaluate_answer(answer: str, question: str, resume: str, cover_letter: str) -> dict:
+def evaluate_answer(answer: str, question: str, position: str, resume: str = "", cover_letter: str = "") -> dict:
     system_prompt = (
         "너는 인사담당자야. 아래 문항에 대해 지원자의 답변이 얼마나 관련성 있고, 구체적이며, 실무성과 유효성을 갖췄는지 평가해줘. "
         "각 항목은 10점 만점이고 총점은 40점 만점이야. 각 항목 점수와 함께 간단한 피드백도 같이 줘."
     )
 
     user_input = f"""
+    [지원 직무]
+    {position}
+
     [이력서]
-    {resume}
+    {resume if resume else "없음"}
 
     [자기소개서]
-    {cover_letter}
+    {cover_letter if cover_letter else "없음"}
 
     [면접 질문]
     {question}
@@ -46,7 +49,7 @@ def evaluate_answer(answer: str, question: str, resume: str, cover_letter: str) 
 
     content = response.choices[0].message.content.strip()
 
-    # 점수 파싱 (정수 처리)
+    # 점수 파싱
     result = {}
     for line in content.split("\n"):
         if ":" in line:
@@ -62,23 +65,14 @@ def evaluate_answer(answer: str, question: str, resume: str, cover_letter: str) 
 
     return result
 
+
+# 로컬 테스트용 예시 실행
 if __name__ == "__main__":
-    from pathlib import Path
+    question = "스프링 부트 기반 프로젝트에서 본인의 역할은 무엇이었나요?"
+    answer = "JWT 기반 인증 기능을 맡아서 구현했으며, Redis를 이용한 리프레시 토큰 저장도 처리했습니다."
+    position = "백엔드 개발자"
 
-    base_path = Path(__file__).resolve().parent.parent / "sample_inputs"
-    resume_path = base_path / "sample_resume.txt"
-    cover_path = base_path / "sample_cover_letter.txt"
-
-    with open(resume_path, "r", encoding="utf-8") as f:
-        resume = f.read()
-    with open(cover_path, "r", encoding="utf-8") as f:
-        cover_letter = f.read()
-
-    question = "자바와 스프링 부트를 이용한 프로젝트에서 본인의 역할과 해결한 문제를 설명해주세요."
-    answer = "저는 백엔드 개발을 담당했고, 로그인 기능에서 JWT 인증과 리프레시 토큰 관리를 맡았습니다. 토큰 만료 이슈가 발생해 Redis를 활용하여 해결했습니다."
-
-    result = evaluate_answer(answer, question, resume, cover_letter)
-
+    result = evaluate_answer(answer, question, position)
     print("\n[LLM 평가 결과]")
     for k, v in result.items():
         print(f"{k}: {v}")

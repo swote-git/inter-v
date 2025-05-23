@@ -31,8 +31,8 @@ public class RestTemplateConfig {
         HttpClientConnectionManager manager = PoolingHttpClientConnectionManagerBuilder.create()
                 .setDefaultConnectionConfig(
                         ConnectionConfig.custom()
-                                .setSocketTimeout(5000, TimeUnit.MILLISECONDS)
-                                .setConnectTimeout(3000, TimeUnit.MILLISECONDS)
+                                .setSocketTimeout(4000, TimeUnit.MILLISECONDS)
+                                .setConnectTimeout(5000, TimeUnit.MILLISECONDS)
                                 .build()
                 )
                 .setMaxConnTotal(50)
@@ -45,6 +45,9 @@ public class RestTemplateConfig {
 
         HttpComponentsClientHttpRequestFactory f = new HttpComponentsClientHttpRequestFactory();
         f.setHttpClient(c);
+
+        f.setConnectTimeout(3000); // 연결 시도 타임아웃 (ms)
+        f.setReadTimeout(60000); // 응답 대기 타임아웃 (ms) - 60초로 확장
 
         return restTemplateBuilder
                 .requestFactory(() -> new BufferingClientHttpRequestFactory(f))

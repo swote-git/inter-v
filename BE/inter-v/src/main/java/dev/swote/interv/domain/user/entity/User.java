@@ -46,6 +46,8 @@ public class User extends BaseEntity {
 
     private LocalDate birthDate;
 
+    private String name; // 테스트용 추가
+
     @ManyToMany
     @JoinTable(
             name = "user_favorite_questions",
@@ -66,5 +68,8 @@ public class User extends BaseEntity {
                 .birthDate(registerVO.getBirthDate())
                 .favoritedQuestions(new HashSet<>())
                 .build();
+    }
+    public void setName(String name) {
+        this.name = name;
     }
 }

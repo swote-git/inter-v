@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 from schemas.interview_schema import SimulationRequest, SimulationResponse
-from services.question_generator import generate_interview_questions
+from services.question_generator import generate_questions
 from services.answer_evaluator import evaluate_answer
 import random
 
@@ -11,7 +11,7 @@ router = APIRouter()
 @router.post("/simulate", response_model=SimulationResponse)
 def simulate_interview(request: SimulationRequest):
     # 1. 질문 생성
-    questions = generate_interview_questions(
+    questions = generate_questions(
         resume=request.resume,
         cover_letter=request.cover_letter,
         job_description=request.job_description,
