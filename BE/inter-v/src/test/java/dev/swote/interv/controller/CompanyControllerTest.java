@@ -1,7 +1,6 @@
 package dev.swote.interv.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.swote.interv.config.CommonResponse;
 import dev.swote.interv.domain.company.entity.Company;
 import dev.swote.interv.domain.position.entity.Position;
 import dev.swote.interv.service.company.CompanyService;
@@ -10,8 +9,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Arrays;
@@ -22,6 +22,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -34,7 +35,7 @@ public class CompanyControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private CompanyService companyService;
 
     private Company testCompany;
@@ -67,11 +68,13 @@ public class CompanyControllerTest {
     }
 
     @Test
+    @WithMockUser // Mock 사용자 인증 추가
     @DisplayName("Get all companies - success")
     void getAllCompanies_Success() throws Exception {
         when(companyService.getAllCompanies()).thenReturn(testCompanies);
 
-        mockMvc.perform(get("/api/companies"))
+        mockMvc.perform(get("/api/companies")
+                        .with(csrf())) // CSRF 토큰 추가
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status", is(200)))
                 .andExpect(jsonPath("$.data", hasSize(1)))
@@ -82,12 +85,14 @@ public class CompanyControllerTest {
     }
 
     @Test
+    @WithMockUser
     @DisplayName("Search companies - success")
     void searchCompanies_Success() throws Exception {
         when(companyService.searchCompanies(anyString())).thenReturn(testCompanies);
 
         mockMvc.perform(get("/api/companies/search")
-                        .param("keyword", "Test"))
+                        .param("keyword", "Test")
+                        .with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status", is(200)))
                 .andExpect(jsonPath("$.data", hasSize(1)))
@@ -97,11 +102,13 @@ public class CompanyControllerTest {
     }
 
     @Test
+    @WithMockUser
     @DisplayName("Get company by ID - success")
     void getCompany_Success() throws Exception {
         when(companyService.getCompanyById(anyInt())).thenReturn(testCompany);
 
-        mockMvc.perform(get("/api/companies/1"))
+        mockMvc.perform(get("/api/companies/1")
+                        .with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status", is(200)))
                 .andExpect(jsonPath("$.data.name", is("Test Company")))
@@ -111,6 +118,7 @@ public class CompanyControllerTest {
     }
 
     @Test
+    @WithMockUser
     @DisplayName("Create company - success")
     void createCompany_Success() throws Exception {
         when(companyService.createCompany(anyString(), anyString(), anyString()))
@@ -123,7 +131,8 @@ public class CompanyControllerTest {
 
         mockMvc.perform(post("/api/companies")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(csrf()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status", is(200)))
                 .andExpect(jsonPath("$.data.name", is("Test Company")));
@@ -133,11 +142,13 @@ public class CompanyControllerTest {
     }
 
     @Test
+    @WithMockUser
     @DisplayName("Get company positions - success")
     void getCompanyPositions_Success() throws Exception {
         when(companyService.getCompanyPositions(anyInt())).thenReturn(testPositions);
 
-        mockMvc.perform(get("/api/companies/1/positions"))
+        mockMvc.perform(get("/api/companies/1/positions")
+                        .with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status", is(200)))
                 .andExpect(jsonPath("$.data", hasSize(1)))
@@ -147,6 +158,7 @@ public class CompanyControllerTest {
     }
 
     @Test
+    @WithMockUser
     @DisplayName("Create position - success")
     void createPosition_Success() throws Exception {
         when(companyService.createPosition(anyInt(), anyString(), anyString(), anyList()))
@@ -160,7 +172,8 @@ public class CompanyControllerTest {
 
         mockMvc.perform(post("/api/companies/1/positions")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(csrf()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status", is(200)))
                 .andExpect(jsonPath("$.data.title", is("Software Engineer")));

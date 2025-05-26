@@ -102,6 +102,8 @@ dependencies {
     implementation 'com.h2database:h2:2.2.224'
     // https://mvnrepository.com/artifact/com.mysql/mysql-connector-j
     implementation 'com.mysql:mysql-connector-j:9.3.0'
+    // https://mvnrepository.com/artifact/org.springframework.security/spring-security-test
+    testImplementation 'org.springframework.security:spring-security-test:6.5.0'
 }
 
 tasks.named('test') {

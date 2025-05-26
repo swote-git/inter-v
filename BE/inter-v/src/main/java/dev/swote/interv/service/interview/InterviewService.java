@@ -1,4 +1,5 @@
 package dev.swote.interv.service.interview;
+
 import lombok.extern.slf4j.Slf4j;
 import dev.swote.interv.domain.interview.entity.*;
 import dev.swote.interv.domain.interview.repository.AnswerRepository;
@@ -11,10 +12,12 @@ import dev.swote.interv.domain.resume.repository.ResumeRepository;
 import dev.swote.interv.domain.user.entity.User;
 import dev.swote.interv.domain.user.repository.UserRepository;
 import dev.swote.interv.service.ai.LlmService;
-import dev.swote.interv.service.audio.AudioStorageService;
-import dev.swote.interv.service.audio.SpeechToTextService;
-import dev.swote.interv.service.audio.TextToSpeechService;
+// Audio 서비스들은 선택적으로 사용
+// import dev.swote.interv.service.audio.AudioStorageService;
+// import dev.swote.interv.service.audio.SpeechToTextService;
+// import dev.swote.interv.service.audio.TextToSpeechService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -40,15 +43,16 @@ public class InterviewService {
     private final ResumeRepository resumeRepository;
     private final PositionRepository positionRepository;
     private final LlmService llmService;
-<<<<<<< HEAD
-    private final AudioStorageService audioStorageService;
-    private final TextToSpeechService textToSpeechService;
-    private final SpeechToTextService speechToTextService;
-=======
-//    private final AudioStorageService audioStorageService;
-//    private final TextToSpeechService textToSpeechService;
-//    private final SpeechToTextService speechToTextService;
->>>>>>> 1763e46 (feat: RestTemplate timeout 설정 등 로컬 변경사항 전체 업로드)
+
+    // Audio 서비스들은 선택적으로 주입 (null일 수 있음)
+    // @Autowired(required = false)
+    // private AudioStorageService audioStorageService;
+
+    // @Autowired(required = false)
+    // private TextToSpeechService textToSpeechService;
+
+    // @Autowired(required = false)
+    // private SpeechToTextService speechToTextService;
 
     @Transactional(readOnly = true)
     public Page<InterviewSession> getUserInterviews(Integer userId, Pageable pageable) {
@@ -71,7 +75,7 @@ public class InterviewService {
 
     @Transactional
     public InterviewSession createInterview(Integer userId, CreateInterviewRequest request) {
-        // ✅ 유저 처리 (DB 없을 경우 더미 유저 생성)
+        // 유저 처리 (DB 없을 경우 더미 유저 생성)
         User user = userRepository.findById(userId).orElseGet(() -> {
             log.warn("User not found in DB (id: {}). Using dummy user for test.", userId);
             User dummyUser = new User();
@@ -79,7 +83,7 @@ public class InterviewService {
             dummyUser.setEmail("dummy@example.com");
             return userRepository.save(dummyUser);
         });
-    
+
         Resume resume = null;
         if (request.getResumeId() != null) {
             resume = resumeRepository.findById(request.getResumeId()).orElseGet(() -> {
@@ -89,8 +93,8 @@ public class InterviewService {
                 return resumeRepository.save(dummyResume);
             });
         }
-    
-        // ✅ 포지션 처리 (DB 없을 경우 더미 포지션 생성)
+
+        // 포지션 처리 (DB 없을 경우 더미 포지션 생성)
         Position position = null;
         if (request.getPositionId() != null) {
             position = positionRepository.findById(request.getPositionId()).orElseGet(() -> {
@@ -100,10 +104,10 @@ public class InterviewService {
                 return positionRepository.save(dummyPosition);
             });
         }
-    
-        // ✅ 세션 생성
+
+        // 세션 생성
         String shareUrl = UUID.randomUUID().toString();
-    
+
         InterviewSession interviewSession = InterviewSession.builder()
                 .user(userRepository.existsById(user.getId()) ? user : null)
                 .resume(resume != null && resume.getId() != null && resumeRepository.existsById(resume.getId()) ? resume : null)
@@ -117,10 +121,10 @@ public class InterviewService {
                 .currentQuestionIndex(0)
                 .totalTimeSeconds(0)
                 .build();
-    
+
         interviewSession = interviewSessionRepository.save(interviewSession);
-    
-        // ✅ 질문 생성 또는 조회
+
+        // 질문 생성 또는 조회
         List<Question> questions;
 
         if (request.getQuestionIds() != null && !request.getQuestionIds().isEmpty()) {
@@ -133,11 +137,18 @@ public class InterviewService {
                     request.getType().toString(),
                     request.getQuestionCount());
         } else {
-            // 실전 모드: LLM 서버 연동 혹은 임시 전체 질문
-            questions = llmService.generateInterviewQuestions(resume, position, request.getQuestionCount());
+            // 실전 모드: LLM 서버 연동
+            try {
+                questions = llmService.generateInterviewQuestions(resume, position, request.getQuestionCount());
+            } catch (Exception e) {
+                log.error("Failed to generate questions from LLM service, using random questions", e);
+                questions = questionRepository.findRandomQuestions(
+                        request.getType().toString(),
+                        request.getQuestionCount());
+            }
         }
 
-        // ✅ 질문 순서 및 세션 설정
+        // 질문 순서 및 세션 설정
         int sequence = 1;
         for (Question question : questions) {
             question.setInterviewSession(interviewSession);
@@ -145,7 +156,7 @@ public class InterviewService {
             questionRepository.save(question);
         }
 
-        // ✅ 질문 리스트를 세션에 할당 (직렬화에 필요)
+        // 질문 리스트를 세션에 할당 (직렬화에 필요)
         interviewSession.setUser(user);
         interviewSession.setResume(resume);
         interviewSession.setPosition(position);
@@ -196,18 +207,13 @@ public class InterviewService {
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new RuntimeException("Question not found"));
 
+        // Audio 기능이 비활성화된 경우 기본 텍스트 답변으로 처리
+        log.warn("Audio processing is not enabled. Processing as text answer.");
 
-        String audioFilePath = audioStorageService.storeAudioFile(audioFile);
-
-        // Start transcription job
-        String jobName = speechToTextService.startTranscriptionJob(audioFilePath);
-
-        // In a real application, you'd use a job queue to poll for the result
-        String transcriptionUrl = speechToTextService.getTranscriptionResult(jobName);
-        String transcribedText = speechToTextService.extractTranscribedText(transcriptionUrl);
+        // 파일명을 기본 답변으로 사용 (실제로는 음성 인식 결과가 들어가야 함)
+        String transcribedText = "Audio answer submitted: " + audioFile.getOriginalFilename();
 
         Answer answer = llmService.provideFeedback(question, transcribedText);
-        answer.setAudioFilePath(audioFilePath);
         return answerRepository.save(answer);
     }
 
@@ -216,9 +222,9 @@ public class InterviewService {
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new RuntimeException("Question not found"));
 
-        // TODO(FIX IT)
-//        return textToSpeechService.convertTextToSpeech(question.getContent());
-        return "";
+        // TTS 기능이 비활성화된 경우 빈 문자열 반환
+        log.warn("Text-to-speech service is not enabled.");
+        return ""; // 실제로는 TTS 서비스를 통해 오디오 URL을 반환해야 함
     }
 
     @Transactional
@@ -244,6 +250,11 @@ public class InterviewService {
         }
 
         List<Question> questions = questionRepository.findByInterviewSessionOrderBySequenceAsc(session);
+
+        if (questions.isEmpty() || session.getCurrentQuestionIndex() >= questions.size()) {
+            throw new RuntimeException("No questions found or index out of bounds");
+        }
+
         Question nextQuestion = questions.get(session.getCurrentQuestionIndex());
 
         // Update the current question index
