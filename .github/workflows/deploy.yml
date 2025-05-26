@@ -1,0 +1,255 @@
+name: Deploy InterV Application
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+
+env:
+  AWS_REGION: ap-northeast-2
+  APPLICATION_NAME: interv
+
+jobs:
+  deploy-infrastructure:
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, '[deploy-infra]') || contains(github.event.head_commit.modified, 'infrastructure/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: ~1.6.0
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Deploy Infrastructure
+      env:
+        TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+        TF_VAR_key_pair_name: ${{ secrets.EC2_KEY_PAIR_NAME }}
+        TF_VAR_aws_region: ${{ env.AWS_REGION }}
+        TF_VAR_app_name: ${{ env.APPLICATION_NAME }}
+        TF_VAR_domain_name: "interv.swote.dev"
+      run: |
+        cd infrastructure/
+        
+        echo "🏗️ Initializing Terraform..."
+        terraform init
+        
+        echo "📋 Planning infrastructure changes..."
+        terraform plan -out=tfplan
+        
+        echo "🚀 Applying infrastructure changes..."
+        terraform apply tfplan
+        
+        echo "📊 Saving Terraform outputs..."
+        terraform output -json > terraform-outputs.json
+        
+        # S3 버킷 이름을 GitHub Environment에 저장 (다음 job에서 사용)
+        S3_BUCKET=$(terraform output -raw s3_bucket_name)
+        echo "S3_BUCKET_NAME=$S3_BUCKET" >> $GITHUB_ENV
+        echo "🪣 S3 Bucket: $S3_BUCKET"
+    
+    outputs:
+      s3_bucket_name: ${{ env.S3_BUCKET_NAME }}
+
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure]
+    if: always() && !failure()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'corretto'
+    
+    - name: Cache Maven dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+    
+    - name: Build application
+      run: |
+        echo "📦 Building Spring Boot application..."
+        
+        # 프로젝트 구조에 따라 빌드 디렉토리 찾기
+        if [ -d "inter-v" ]; then
+          cd inter-v
+          echo "Building in inter-v directory"
+        elif [ -d "BE/inter-v" ]; then
+          cd BE/inter-v
+          echo "Building in BE/inter-v directory"
+        else
+          echo "❌ Application directory not found!"
+          exit 1
+        fi
+        
+        mvn clean package -DskipTests
+        
+        # 빌드 결과 확인
+        JAR_FILE=$(find target -name "*.jar" | head -1)
+        if [ -n "$JAR_FILE" ]; then
+          echo "✅ Build successful: $JAR_FILE"
+        else
+          echo "❌ Build failed: No JAR file found"
+          exit 1
+        fi
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Get S3 bucket name
+      id: get-bucket
+      run: |
+        # S3 버킷 이름 가져오기 (Terraform output 또는 Secrets)
+        if [ -n "${{ secrets.S3_BUCKET_NAME }}" ]; then
+          S3_BUCKET="${{ secrets.S3_BUCKET_NAME }}"
+        else
+          # Terraform output에서 가져오기
+          cd infrastructure/
+          S3_BUCKET=$(terraform output -raw s3_bucket_name 2>/dev/null || echo "")
+        fi
+        
+        if [ -z "$S3_BUCKET" ]; then
+          echo "❌ S3 bucket name not found!"
+          exit 1
+        fi
+        
+        echo "S3_BUCKET=$S3_BUCKET" >> $GITHUB_OUTPUT
+        echo "🪣 Using S3 bucket: $S3_BUCKET"
+    
+    - name: Upload JAR to S3
+      env:
+        S3_BUCKET: ${{ steps.get-bucket.outputs.S3_BUCKET }}
+      run: |
+        echo "📤 Uploading application to S3..."
+        
+        # JAR 파일 찾기
+        if [ -d "inter-v" ]; then
+          JAR_PATH="inter-v/target"
+        elif [ -d "BE/inter-v" ]; then
+          JAR_PATH="BE/inter-v/target"
+        else
+          JAR_PATH="target"
+        fi
+        
+        JAR_FILE=$(find $JAR_PATH -name "*.jar" | head -1)
+        
+        if [ -n "$JAR_FILE" ]; then
+          # 타임스탬프와 함께 업로드
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          
+          # 백업용 업로드
+          aws s3 cp "$JAR_FILE" "s3://$S3_BUCKET/releases/$TIMESTAMP/$APPLICATION_NAME.jar"
+          
+          # 최신 버전 업로드
+          aws s3 cp "$JAR_FILE" "s3://$S3_BUCKET/releases/latest/$APPLICATION_NAME.jar"
+          
+          # 배포 정보 업로드
+          echo "{\"timestamp\":\"$TIMESTAMP\",\"commit\":\"$GITHUB_SHA\",\"branch\":\"$GITHUB_REF_NAME\",\"actor\":\"$GITHUB_ACTOR\"}" > deployment-info.json
+          aws s3 cp deployment-info.json "s3://$S3_BUCKET/releases/latest/deployment-info.json"
+          
+          echo "✅ JAR uploaded successfully: $JAR_FILE"
+          echo "📦 Backup: s3://$S3_BUCKET/releases/$TIMESTAMP/"
+          echo "🔄 Latest: s3://$S3_BUCKET/releases/latest/"
+        else
+          echo "❌ JAR file not found in $JAR_PATH"
+          exit 1
+        fi
+    
+    - name: Trigger Auto Scaling Group refresh
+      run: |
+        echo "🔄 Triggering Auto Scaling Group refresh..."
+        
+        ASG_NAME="${APPLICATION_NAME}-asg"
+        
+        # 현재 인스턴스 상태 확인
+        aws autoscaling describe-auto-scaling-groups \
+          --auto-scaling-group-names $ASG_NAME \
+          --query 'AutoScalingGroups[0].{Desired:DesiredCapacity,Running:Instances[?LifecycleState==`InService`]|length(@)}'
+        
+        # 인스턴스 새로고침 시작
+        REFRESH_ID=$(aws autoscaling start-instance-refresh \
+          --auto-scaling-group-name $ASG_NAME \
+          --preferences MinHealthyPercentage=50,InstanceWarmup=300,CheckpointPercentages=50 \
+          --query 'InstanceRefreshId' --output text)
+        
+        echo "🔄 Instance refresh started: $REFRESH_ID"
+        echo "⏳ Waiting for instance refresh to complete..."
+        
+        # 완료 대기
+        aws autoscaling wait instance-refresh-successful \
+          --auto-scaling-group-name $ASG_NAME \
+          --instance-refresh-ids $REFRESH_ID
+        
+        echo "✅ Instance refresh completed successfully!"
+    
+    - name: Health check and verification
+      run: |
+        echo "🔍 Performing post-deployment health checks..."
+        
+        # 애플리케이션 시작 대기
+        echo "⏳ Waiting for application startup (60 seconds)..."
+        sleep 60
+        
+        # Health check
+        HEALTH_URL="https://interv.swote.dev/actuator/health"
+        MAX_ATTEMPTS=10
+        
+        for i in $(seq 1 $MAX_ATTEMPTS); do
+          echo "🏥 Health check attempt $i/$MAX_ATTEMPTS..."
+          
+          if curl -f -s "$HEALTH_URL" > /dev/null; then
+            echo "✅ Application is healthy!"
+            
+            # 상세 상태 확인
+            echo "📊 Application status:"
+            curl -s "$HEALTH_URL" | jq . || curl -s "$HEALTH_URL"
+            
+            break
+          else
+            if [ $i -eq $MAX_ATTEMPTS ]; then
+              echo "❌ Health check failed after $MAX_ATTEMPTS attempts"
+              echo "🔍 Checking ALB target health..."
+              
+              # ALB 타겟 그룹 상태 확인
+              TARGET_GROUP_ARN=$(aws elbv2 describe-target-groups \
+                --names "${APPLICATION_NAME}-tg" \
+                --query 'TargetGroups[0].TargetGroupArn' --output text)
+              
+              aws elbv2 describe-target-health \
+                --target-group-arn $TARGET_GROUP_ARN
+              
+              exit 1
+            fi
+            
+            echo "⏳ Waiting 30 seconds before retry..."
+            sleep 30
+          fi
+        done
+        
+        echo ""
+        echo "🎉 Deployment completed successfully!"
+        echo "🌐 Application URL: https://interv.swote.dev"
+        echo "🏥 Health Check: https://interv.swote.dev/actuator/health"
+        echo "📊 Monitoring: AWS CloudWatch Console"
