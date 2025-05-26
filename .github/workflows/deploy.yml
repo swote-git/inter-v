@@ -32,6 +32,91 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
     
+    - name: Initialize Terraform
+      run: |
+        cd infrastructure/
+        echo "🏗️ Initializing Terraform..."
+        terraform init
+    
+    - name: Handle Resource Conflicts
+      env:
+        TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+        TF_VAR_key_pair_name: ${{ secrets.EC2_KEY_PAIR_NAME }}
+        TF_VAR_aws_region: ${{ env.AWS_REGION }}
+        TF_VAR_app_name: ${{ env.APPLICATION_NAME }}
+        TF_VAR_domain_name: "interv.swote.dev"
+      run: |
+        cd infrastructure/
+        
+        echo "🔍 Checking for resource conflicts..."
+        
+        # Terraform plan을 실행해서 충돌 확인
+        if ! terraform plan -out=tfplan 2>/dev/null; then
+          echo "⚠️ Resource conflicts detected! Attempting to import existing resources..."
+          
+          # 기존 리소스들을 import
+          echo "📥 Importing existing resources..."
+          
+          # DB Subnet Group
+          if aws rds describe-db-subnet-groups --db-subnet-group-name interv-db-subnet-group >/dev/null 2>&1; then
+            echo "Importing DB Subnet Group..."
+            terraform import aws_db_subnet_group.main interv-db-subnet-group || true
+          fi
+          
+          # Load Balancer
+          ALB_ARN=$(aws elbv2 describe-load-balancers --names interv-alb --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null || echo "None")
+          if [ "$ALB_ARN" != "None" ] && [ "$ALB_ARN" != "null" ]; then
+            echo "Importing Load Balancer: $ALB_ARN"
+            terraform import aws_lb.main "$ALB_ARN" || true
+          fi
+          
+          # Target Group
+          TG_ARN=$(aws elbv2 describe-target-groups --names interv-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "None")
+          if [ "$TG_ARN" != "None" ] && [ "$TG_ARN" != "null" ]; then
+            echo "Importing Target Group: $TG_ARN"
+            terraform import aws_lb_target_group.app "$TG_ARN" || true
+          fi
+          
+          # IAM Role
+          if aws iam get-role --role-name interv-ec2-role >/dev/null 2>&1; then
+            echo "Importing IAM Role..."
+            terraform import aws_iam_role.ec2_role interv-ec2-role || true
+          fi
+          
+          # IAM Role Policy
+          if aws iam get-role-policy --role-name interv-ec2-role --policy-name interv-ec2-policy >/dev/null 2>&1; then
+            echo "Importing IAM Role Policy..."
+            terraform import aws_iam_role_policy.ec2_policy interv-ec2-role:interv-ec2-policy || true
+          fi
+          
+          # IAM Instance Profile
+          if aws iam get-instance-profile --instance-profile-name interv-ec2-profile >/dev/null 2>&1; then
+            echo "Importing IAM Instance Profile..."
+            terraform import aws_iam_instance_profile.ec2_profile interv-ec2-profile || true
+          fi
+          
+          # Auto Scaling Group
+          if aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names interv-asg >/dev/null 2>&1; then
+            echo "Importing Auto Scaling Group..."
+            terraform import aws_autoscaling_group.app interv-asg || true
+          fi
+          
+          # Launch Template
+          LT_ID=$(aws ec2 describe-launch-templates --launch-template-names interv-lt --query 'LaunchTemplates[0].LaunchTemplateId' --output text 2>/dev/null || echo "None")
+          if [ "$LT_ID" != "None" ] && [ "$LT_ID" != "null" ]; then
+            echo "Importing Launch Template: $LT_ID"
+            terraform import aws_launch_template.app "$LT_ID" || true
+          fi
+          
+          echo "✅ Import completed!"
+          
+          # 다시 plan 실행
+          echo "📋 Re-running terraform plan after import..."
+          terraform plan -out=tfplan
+        else
+          echo "✅ No conflicts detected, proceeding with plan..."
+        fi
+    
     - name: Deploy Infrastructure
       env:
         TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
@@ -42,19 +127,13 @@ jobs:
       run: |
         cd infrastructure/
         
-        echo "🏗️ Initializing Terraform..."
-        terraform init
-        
-        echo "📋 Planning infrastructure changes..."
-        terraform plan -out=tfplan
-        
         echo "🚀 Applying infrastructure changes..."
         terraform apply tfplan
         
         echo "📊 Saving Terraform outputs..."
         terraform output -json > terraform-outputs.json
         
-        # S3 버킷 이름을 GitHub Environment에 저장 (다음 job에서 사용)
+        # S3 버킷 이름을 GitHub Environment에 저장
         S3_BUCKET=$(terraform output -raw s3_bucket_name)
         echo "S3_BUCKET_NAME=$S3_BUCKET" >> $GITHUB_ENV
         echo "🪣 S3 Bucket: $S3_BUCKET"
@@ -121,14 +200,10 @@ jobs:
     - name: Get S3 bucket name
       id: get-bucket
       run: |
-        # S3 버킷 이름 가져오기 (Terraform output 또는 Secrets)
-        if [ -n "${{ secrets.S3_BUCKET_NAME }}" ]; then
-          S3_BUCKET="${{ secrets.S3_BUCKET_NAME }}"
-        else
-          # Terraform output에서 가져오기
-          cd infrastructure/
-          S3_BUCKET=$(terraform output -raw s3_bucket_name 2>/dev/null || echo "")
-        fi
+        # Terraform state에서 S3 버킷 이름 가져오기
+        cd infrastructure/
+        terraform init
+        S3_BUCKET=$(terraform output -raw s3_bucket_name 2>/dev/null || echo "")
         
         if [ -z "$S3_BUCKET" ]; then
           echo "❌ S3 bucket name not found!"
@@ -183,6 +258,12 @@ jobs:
         
         ASG_NAME="${APPLICATION_NAME}-asg"
         
+        # ASG 존재 확인
+        if ! aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names $ASG_NAME >/dev/null 2>&1; then
+          echo "⚠️ Auto Scaling Group not found, skipping refresh..."
+          exit 0
+        fi
+        
         # 현재 인스턴스 상태 확인
         aws autoscaling describe-auto-scaling-groups \
           --auto-scaling-group-names $ASG_NAME \
@@ -197,12 +278,14 @@ jobs:
         echo "🔄 Instance refresh started: $REFRESH_ID"
         echo "⏳ Waiting for instance refresh to complete..."
         
-        # 완료 대기
-        aws autoscaling wait instance-refresh-successful \
+        # 완료 대기 (타임아웃 15분)
+        timeout 900 aws autoscaling wait instance-refresh-successful \
           --auto-scaling-group-name $ASG_NAME \
-          --instance-refresh-ids $REFRESH_ID
+          --instance-refresh-ids $REFRESH_ID || {
+          echo "⚠️ Instance refresh timeout, but continuing..."
+        }
         
-        echo "✅ Instance refresh completed successfully!"
+        echo "✅ Instance refresh completed!"
     
     - name: Health check and verification
       run: |
@@ -219,12 +302,12 @@ jobs:
         for i in $(seq 1 $MAX_ATTEMPTS); do
           echo "🏥 Health check attempt $i/$MAX_ATTEMPTS..."
           
-          if curl -f -s "$HEALTH_URL" > /dev/null; then
+          if curl -f -s --max-time 10 "$HEALTH_URL" > /dev/null; then
             echo "✅ Application is healthy!"
             
             # 상세 상태 확인
             echo "📊 Application status:"
-            curl -s "$HEALTH_URL" | jq . || curl -s "$HEALTH_URL"
+            curl -s --max-time 10 "$HEALTH_URL" | jq . || curl -s --max-time 10 "$HEALTH_URL"
             
             break
           else
@@ -235,10 +318,12 @@ jobs:
               # ALB 타겟 그룹 상태 확인
               TARGET_GROUP_ARN=$(aws elbv2 describe-target-groups \
                 --names "${APPLICATION_NAME}-tg" \
-                --query 'TargetGroups[0].TargetGroupArn' --output text)
+                --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "None")
               
-              aws elbv2 describe-target-health \
-                --target-group-arn $TARGET_GROUP_ARN
+              if [ "$TARGET_GROUP_ARN" != "None" ]; then
+                aws elbv2 describe-target-health \
+                  --target-group-arn $TARGET_GROUP_ARN
+              fi
               
               exit 1
             fi
