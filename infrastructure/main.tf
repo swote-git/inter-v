@@ -1,4 +1,4 @@
-# infrastructure/main.tf - 최소 배포를 위한 통합 인프라 구성
+# infrastructure/main.tf
 
 terraform {
   required_version = ">= 1.0"
@@ -12,6 +12,12 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
+}
+
+# 추가: us-east-1 provider (CloudFront SSL용 - 필요시)
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
 }
 
 # 데이터 소스
@@ -30,6 +36,11 @@ data "aws_ami" "amazon_linux" {
     name   = "name"
     values = ["amzn2-ami-hvm-*-x86_64-gp2"]
   }
+}
+
+# 키 페어 존재 확인
+data "aws_key_pair" "existing" {
+  key_name = var.key_pair_name
 }
 
 # VPC 및 네트워킹
@@ -221,13 +232,13 @@ resource "aws_db_instance" "main" {
   vpc_security_group_ids = [aws_security_group.rds.id]
   db_subnet_group_name   = aws_db_subnet_group.main.name
   backup_retention_period = 7
-  multi_az               = false  # 비용 절약을 위해 단일 AZ
+  multi_az               = false
   publicly_accessible    = false
   skip_final_snapshot    = true
   tags = { Name = "${var.app_name}-db" }
 }
 
-# SSL 인증서
+# SSL 인증서 (ALB용 - ap-northeast-2)
 resource "aws_acm_certificate" "main" {
   domain_name       = var.domain_name
   validation_method = "DNS"
@@ -256,6 +267,10 @@ resource "aws_route53_record" "cert_validation" {
 resource "aws_acm_certificate_validation" "main" {
   certificate_arn         = aws_acm_certificate.main.arn
   validation_record_fqdns = [for record in aws_route53_record.cert_validation : record.fqdn]
+  
+  timeouts {
+    create = "10m"
+  }
 }
 
 # ALB
@@ -362,7 +377,7 @@ resource "aws_launch_template" "app" {
   name_prefix   = "${var.app_name}-lt-"
   image_id      = data.aws_ami.amazon_linux.id
   instance_type = "t3.small"
-  key_name      = var.key_pair_name
+  key_name      = data.aws_key_pair.existing.key_name  # 검증된 키 페어 사용
   vpc_security_group_ids = [aws_security_group.ec2.id]
   iam_instance_profile {
     name = aws_iam_instance_profile.ec2_profile.name
@@ -401,59 +416,15 @@ resource "aws_autoscaling_group" "app" {
   }
 }
 
-# CloudFront
-resource "aws_cloudfront_distribution" "main" {
-  origin {
-    domain_name = aws_lb.main.dns_name
-    origin_id   = "${var.app_name}-alb"
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
-    }
-  }
-  enabled = true
-  aliases = [var.domain_name]
-  default_cache_behavior {
-    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
-    cached_methods         = ["GET", "HEAD"]
-    target_origin_id       = "${var.app_name}-alb"
-    compress               = true
-    viewer_protocol_policy = "redirect-to-https"
-    forwarded_values {
-      query_string = true
-      headers      = ["*"]
-      cookies {
-        forward = "all"
-      }
-    }
-    min_ttl     = 0
-    default_ttl = 86400
-    max_ttl     = 31536000
-  }
-  price_class = "PriceClass_100"  # 비용 절약
-  restrictions {
-    geo_restriction {
-      restriction_type = "none"
-    }
-  }
-  viewer_certificate {
-    acm_certificate_arn = aws_acm_certificate_validation.main.certificate_arn
-    ssl_support_method  = "sni-only"
-  }
-  tags = { Name = "${var.app_name}-cloudfront" }
-}
-
-# Route53 Record
+# Route53 Record (ALB 직접 연결)
 resource "aws_route53_record" "main" {
   zone_id = data.aws_route53_zone.main.zone_id
   name    = var.domain_name
   type    = "A"
   alias {
-    name                   = aws_cloudfront_distribution.main.domain_name
-    zone_id                = aws_cloudfront_distribution.main.hosted_zone_id
-    evaluate_target_health = false
+    name                   = aws_lb.main.dns_name
+    zone_id                = aws_lb.main.zone_id
+    evaluate_target_health = true
   }
 }
 
@@ -462,14 +433,14 @@ output "alb_dns_name" {
   value = aws_lb.main.dns_name
 }
 
-output "cloudfront_domain_name" {
-  value = aws_cloudfront_distribution.main.domain_name
-}
-
 output "s3_bucket_name" {
   value = aws_s3_bucket.app_storage.id
 }
 
 output "application_url" {
   value = "https://${var.domain_name}"
+}
+
+output "key_pair_name" {
+  value = data.aws_key_pair.existing.key_name
 }
