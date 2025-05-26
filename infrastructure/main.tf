@@ -38,11 +38,6 @@ data "aws_ami" "amazon_linux" {
   }
 }
 
-# 키 페어 존재 확인
-data "aws_key_pair" "existing" {
-  key_name = var.key_pair_name
-}
-
 # VPC 및 네트워킹
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
@@ -377,7 +372,7 @@ resource "aws_launch_template" "app" {
   name_prefix   = "${var.app_name}-lt-"
   image_id      = data.aws_ami.amazon_linux.id
   instance_type = "t3.small"
-  key_name      = data.aws_key_pair.existing.key_name  # 검증된 키 페어 사용
+  key_name = var.key_pair_name
   vpc_security_group_ids = [aws_security_group.ec2.id]
   iam_instance_profile {
     name = aws_iam_instance_profile.ec2_profile.name
@@ -442,5 +437,5 @@ output "application_url" {
 }
 
 output "key_pair_name" {
-  value = data.aws_key_pair.existing.key_name
+  value = var.key_pair_name
 }
