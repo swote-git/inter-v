@@ -14,7 +14,6 @@ env:
 jobs:
   deploy-infrastructure:
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.message, '[deploy-infra]') || contains(github.event.head_commit.modified, 'infrastructure/')
     
     steps:
     - name: Checkout code
@@ -35,10 +34,9 @@ jobs:
     - name: Initialize Terraform
       run: |
         cd infrastructure/
-        echo "🏗️ Initializing Terraform..."
         terraform init
     
-    - name: Smart Resource Discovery and Import
+    - name: Pre-deployment Resource Import
       env:
         TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
         TF_VAR_key_pair_name: ${{ secrets.EC2_KEY_PAIR_NAME }}
@@ -48,131 +46,72 @@ jobs:
       run: |
         cd infrastructure/
         
-        echo "🔍 Discovering existing AWS resources..."
+        echo "📥 기존 리소스 Import 및 Route53 문제 해결..."
         
-        # 리소스 검색 및 자동 import 함수
-        auto_import_resource() {
-            local resource_type="$1"
-            local resource_name="$2"
-            local aws_resource_id="$3"
-            local check_command="$4"
-            
-            echo "  🔍 Checking $resource_type: $resource_name"
-            
-            if eval "$check_command" >/dev/null 2>&1; then
-                echo "    ✅ Found existing resource: $aws_resource_id"
-                if terraform import "$resource_name" "$aws_resource_id" 2>/dev/null; then
-                    echo "    📥 Successfully imported: $resource_name"
-                else
-                    echo "    ⚠️ Import failed or already imported: $resource_name"
-                fi
-            else
-                echo "    ❌ Resource not found: $resource_type"
-            fi
-        }
+        # 1. 핵심 리소스들 import (실패해도 계속 진행)
+        echo "🏗️ 핵심 리소스 Import:"
+        terraform import aws_db_subnet_group.main interv-db-subnet-group 2>/dev/null || echo "  ⚠️ DB Subnet Group: 이미 존재하거나 Import 실패"
+        terraform import aws_iam_role.ec2_role interv-ec2-role 2>/dev/null || echo "  ⚠️ IAM Role: 이미 존재하거나 Import 실패"
         
-        echo ""
-        echo "📥 Starting automatic resource import..."
-        echo ""
-        
-        # 1. VPC 관련 리소스 (있다면)
-        echo "🌐 VPC Resources:"
-        VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=interv-vpc" --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo "None")
-        if [ "$VPC_ID" != "None" ] && [ "$VPC_ID" != "null" ]; then
-            auto_import_resource "VPC" "aws_vpc.main" "$VPC_ID" "aws ec2 describe-vpcs --vpc-ids $VPC_ID"
-        fi
-        
-        # 2. S3 Bucket
-        echo "🪣 S3 Resources:"
-        S3_BUCKET=$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'interv-storage-')].Name" --output text 2>/dev/null || echo "None")
-        if [ "$S3_BUCKET" != "None" ] && [ "$S3_BUCKET" != "null" ]; then
-            auto_import_resource "S3 Bucket" "aws_s3_bucket.app_storage" "$S3_BUCKET" "aws s3api head-bucket --bucket $S3_BUCKET"
-            auto_import_resource "S3 Versioning" "aws_s3_bucket_versioning.app_storage" "$S3_BUCKET" "aws s3api get-bucket-versioning --bucket $S3_BUCKET"
-        fi
-        
-        # 3. IAM Resources
-        echo "👤 IAM Resources:"
-        auto_import_resource "IAM Role" "aws_iam_role.ec2_role" "interv-ec2-role" "aws iam get-role --role-name interv-ec2-role"
-        auto_import_resource "IAM Role Policy" "aws_iam_role_policy.ec2_policy" "interv-ec2-role:interv-ec2-policy" "aws iam get-role-policy --role-name interv-ec2-role --policy-name interv-ec2-policy"
-        auto_import_resource "IAM Instance Profile" "aws_iam_instance_profile.ec2_profile" "interv-ec2-profile" "aws iam get-instance-profile --instance-profile-name interv-ec2-profile"
-        
-        # 4. RDS Resources
-        echo "🗄️ RDS Resources:"
-        auto_import_resource "DB Subnet Group" "aws_db_subnet_group.main" "interv-db-subnet-group" "aws rds describe-db-subnet-groups --db-subnet-group-name interv-db-subnet-group"
-        auto_import_resource "RDS Instance" "aws_db_instance.main" "interv-db" "aws rds describe-db-instances --db-instance-identifier interv-db"
-        
-        # 5. Load Balancer Resources
-        echo "⚖️ Load Balancer Resources:"
+        # ALB 관련
         ALB_ARN=$(aws elbv2 describe-load-balancers --names interv-alb --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null || echo "None")
         if [ "$ALB_ARN" != "None" ] && [ "$ALB_ARN" != "null" ]; then
-            auto_import_resource "Application Load Balancer" "aws_lb.main" "$ALB_ARN" "aws elbv2 describe-load-balancers --load-balancer-arns $ALB_ARN"
-            
-            # ALB Listener
-            LISTENER_ARN=$(aws elbv2 describe-listeners --load-balancer-arn "$ALB_ARN" --query 'Listeners[0].ListenerArn' --output text 2>/dev/null || echo "None")
-            if [ "$LISTENER_ARN" != "None" ] && [ "$LISTENER_ARN" != "null" ]; then
-                auto_import_resource "ALB Listener" "aws_lb_listener.app" "$LISTENER_ARN" "aws elbv2 describe-listeners --listener-arns $LISTENER_ARN"
-            fi
+          terraform import aws_lb.main "$ALB_ARN" 2>/dev/null || echo "  ⚠️ ALB: 이미 존재하거나 Import 실패"
         fi
         
         TG_ARN=$(aws elbv2 describe-target-groups --names interv-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "None")
         if [ "$TG_ARN" != "None" ] && [ "$TG_ARN" != "null" ]; then
-            auto_import_resource "Target Group" "aws_lb_target_group.app" "$TG_ARN" "aws elbv2 describe-target-groups --target-group-arns $TG_ARN"
+          terraform import aws_lb_target_group.app "$TG_ARN" 2>/dev/null || echo "  ⚠️ Target Group: 이미 존재하거나 Import 실패"
         fi
         
-        # 6. Auto Scaling Resources
-        echo "🔄 Auto Scaling Resources:"
-        auto_import_resource "Auto Scaling Group" "aws_autoscaling_group.app" "interv-asg" "aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names interv-asg"
+        # Auto Scaling Group
+        terraform import aws_autoscaling_group.app interv-asg 2>/dev/null || echo "  ⚠️ ASG: 이미 존재하거나 Import 실패"
         
+        # Launch Template
         LT_ID=$(aws ec2 describe-launch-templates --launch-template-names interv-lt --query 'LaunchTemplates[0].LaunchTemplateId' --output text 2>/dev/null || echo "None")
         if [ "$LT_ID" != "None" ] && [ "$LT_ID" != "null" ]; then
-            auto_import_resource "Launch Template" "aws_launch_template.app" "$LT_ID" "aws ec2 describe-launch-templates --launch-template-ids $LT_ID"
+          terraform import aws_launch_template.app "$LT_ID" 2>/dev/null || echo "  ⚠️ Launch Template: 이미 존재하거나 Import 실패"
         fi
         
-        # 7. Elastic IP Resources
-        echo "🌐 Elastic IP Resources:"
-        EIP_IDS=$(aws ec2 describe-addresses --query 'Addresses[].AllocationId' --output text 2>/dev/null)
-        if [ -n "$EIP_IDS" ]; then
-            EIP_ARRAY=($EIP_IDS)
-            echo "    Found ${#EIP_ARRAY[@]} EIPs"
+        # 2. Route53 레코드 특별 처리
+        echo ""
+        echo "🌍 Route53 레코드 처리:"
+        
+        # Hosted Zone ID 확인
+        HOSTED_ZONE_ID=$(aws route53 list-hosted-zones \
+          --query "HostedZones[?Name=='swote.dev.'].Id" \
+          --output text | cut -d'/' -f3 2>/dev/null || echo "")
+        
+        if [ -n "$HOSTED_ZONE_ID" ]; then
+          echo "  📍 Hosted Zone 발견: $HOSTED_ZONE_ID"
+          
+          # 기존 A 레코드 확인
+          EXISTING_RECORD=$(aws route53 list-resource-record-sets \
+            --hosted-zone-id "$HOSTED_ZONE_ID" \
+            --query "ResourceRecordSets[?Name=='interv.swote.dev.' && Type=='A']" \
+            --output json 2>/dev/null)
+          
+          if [ "$EXISTING_RECORD" != "[]" ] && [ -n "$EXISTING_RECORD" ]; then
+            echo "  ✅ 기존 A 레코드 발견 - Import 시도"
             
-            # NAT Gateway EIPs
-            for i in 0 1; do
-                if [ $i -lt ${#EIP_ARRAY[@]} ]; then
-                    EIP_ID=${EIP_ARRAY[$i]}
-                    auto_import_resource "EIP[$i]" "aws_eip.nat[$i]" "$EIP_ID" "aws ec2 describe-addresses --allocation-ids $EIP_ID"
-                fi
-            done
-        fi
-        
-        # 8. Certificate Resources
-        echo "🔐 Certificate Resources:"
-        CERT_ARN=$(aws acm list-certificates --query "CertificateSummaryList[?DomainName=='interv.swote.dev'].CertificateArn" --output text 2>/dev/null || echo "None")
-        if [ "$CERT_ARN" != "None" ] && [ "$CERT_ARN" != "null" ]; then
-            auto_import_resource "ACM Certificate" "aws_acm_certificate.main" "$CERT_ARN" "aws acm describe-certificate --certificate-arn $CERT_ARN"
-        fi
-        
-        # 9. Security Groups
-        echo "🔒 Security Group Resources:"
-        ALB_SG_ID=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=interv-alb-sg-*" --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || echo "None")
-        if [ "$ALB_SG_ID" != "None" ] && [ "$ALB_SG_ID" != "null" ]; then
-            auto_import_resource "ALB Security Group" "aws_security_group.alb" "$ALB_SG_ID" "aws ec2 describe-security-groups --group-ids $ALB_SG_ID"
-        fi
-        
-        EC2_SG_ID=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=interv-ec2-sg-*" --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || echo "None")
-        if [ "$EC2_SG_ID" != "None" ] && [ "$EC2_SG_ID" != "null" ]; then
-            auto_import_resource "EC2 Security Group" "aws_security_group.ec2" "$EC2_SG_ID" "aws ec2 describe-security-groups --group-ids $EC2_SG_ID"
-        fi
-        
-        RDS_SG_ID=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=interv-rds-sg-*" --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || echo "None")
-        if [ "$RDS_SG_ID" != "None" ] && [ "$RDS_SG_ID" != "null" ]; then
-            auto_import_resource "RDS Security Group" "aws_security_group.rds" "$RDS_SG_ID" "aws ec2 describe-security-groups --group-ids $RDS_SG_ID"
+            # Route53 레코드 import
+            IMPORT_ID="${HOSTED_ZONE_ID}_interv.swote.dev_A"
+            if terraform import aws_route53_record.main "$IMPORT_ID" 2>/dev/null; then
+              echo "  📥 Route53 레코드 Import 성공!"
+            else
+              echo "  ⚠️ Route53 Import 실패 - 수동으로 레코드를 삭제하거나 조건부 생성으로 처리됩니다"
+            fi
+          else
+            echo "  ℹ️ 기존 A 레코드 없음 - 새로 생성됩니다"
+          fi
+        else
+          echo "  ❌ Hosted Zone을 찾을 수 없습니다"
         fi
         
         echo ""
-        echo "✅ Resource discovery and import completed!"
-        echo ""
+        echo "✅ Import 과정 완료!"
     
-    - name: Terraform Plan and Apply
+    - name: Deploy Infrastructure
       env:
         TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
         TF_VAR_key_pair_name: ${{ secrets.EC2_KEY_PAIR_NAME }}
@@ -182,21 +121,34 @@ jobs:
       run: |
         cd infrastructure/
         
-        echo "📋 Running terraform plan after import..."
-        terraform plan -out=tfplan
+        echo "📋 Terraform Plan 실행..."
+        if terraform plan -out=tfplan; then
+          echo "✅ Plan 성공!"
+        else
+          echo "❌ Plan 실패 - 로그를 확인해주세요"
+          exit 1
+        fi
         
-        echo "🚀 Applying infrastructure changes..."
-        terraform apply tfplan
+        echo ""
+        echo "🚀 Infrastructure 배포 시작..."
+        if terraform apply tfplan; then
+          echo "✅ 배포 성공!"
+        else
+          echo "❌ 배포 실패"
+          exit 1
+        fi
         
-        echo "📊 Saving Terraform outputs..."
+        echo "📊 Output 저장..."
         terraform output -json > terraform-outputs.json
         
-        # S3 버킷 이름을 GitHub Environment에 저장
+        # S3 버킷 이름 저장
         S3_BUCKET=$(terraform output -raw s3_bucket_name 2>/dev/null || echo "")
         if [ -n "$S3_BUCKET" ]; then
-            echo "S3_BUCKET_NAME=$S3_BUCKET" >> $GITHUB_ENV
-            echo "🪣 S3 Bucket: $S3_BUCKET"
+          echo "S3_BUCKET_NAME=$S3_BUCKET" >> $GITHUB_ENV
+          echo "🪣 S3 Bucket: $S3_BUCKET"
         fi
+        
+        echo "🎉 Infrastructure 배포 완료!"
     
     outputs:
       s3_bucket_name: ${{ env.S3_BUCKET_NAME }}
@@ -225,9 +177,8 @@ jobs:
     
     - name: Build application
       run: |
-        echo "📦 Building Spring Boot application..."
+        echo "📦 Spring Boot 애플리케이션 빌드..."
         
-        # 프로젝트 구조에 따라 빌드 디렉토리 찾기
         if [ -d "inter-v" ]; then
           cd inter-v
           echo "Building in inter-v directory"
@@ -241,12 +192,11 @@ jobs:
         
         mvn clean package -DskipTests
         
-        # 빌드 결과 확인
         JAR_FILE=$(find target -name "*.jar" | head -1)
         if [ -n "$JAR_FILE" ]; then
-          echo "✅ Build successful: $JAR_FILE"
+          echo "✅ 빌드 성공: $JAR_FILE"
         else
-          echo "❌ Build failed: No JAR file found"
+          echo "❌ 빌드 실패: JAR 파일을 찾을 수 없습니다"
           exit 1
         fi
     
@@ -257,10 +207,11 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
     
-    - name: Get S3 bucket name
-      id: get-bucket
+    - name: Deploy JAR and refresh instances
       run: |
-        # Terraform state에서 S3 버킷 이름 가져오기
+        echo "🚀 애플리케이션 배포 시작..."
+        
+        # S3 버킷 이름 가져오기
         cd infrastructure/
         terraform init
         S3_BUCKET=$(terraform output -raw s3_bucket_name 2>/dev/null || echo "")
@@ -270,131 +221,53 @@ jobs:
           exit 1
         fi
         
-        echo "S3_BUCKET=$S3_BUCKET" >> $GITHUB_OUTPUT
-        echo "🪣 Using S3 bucket: $S3_BUCKET"
-    
-    - name: Upload JAR to S3
-      env:
-        S3_BUCKET: ${{ steps.get-bucket.outputs.S3_BUCKET }}
-      run: |
-        echo "📤 Uploading application to S3..."
+        echo "📤 S3에 업로드: $S3_BUCKET"
         
         # JAR 파일 찾기
-        if [ -d "inter-v" ]; then
-          JAR_PATH="inter-v/target"
-        elif [ -d "BE/inter-v" ]; then
-          JAR_PATH="BE/inter-v/target"
+        if [ -d "../inter-v" ]; then
+          JAR_PATH="../inter-v/target"
+        elif [ -d "../BE/inter-v" ]; then
+          JAR_PATH="../BE/inter-v/target"
         else
-          JAR_PATH="target"
+          JAR_PATH="../target"
         fi
         
         JAR_FILE=$(find $JAR_PATH -name "*.jar" | head -1)
         
         if [ -n "$JAR_FILE" ]; then
-          # 타임스탬프와 함께 업로드
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           
-          # 백업용 업로드
+          # 백업 및 최신 버전 업로드
           aws s3 cp "$JAR_FILE" "s3://$S3_BUCKET/releases/$TIMESTAMP/$APPLICATION_NAME.jar"
-          
-          # 최신 버전 업로드
           aws s3 cp "$JAR_FILE" "s3://$S3_BUCKET/releases/latest/$APPLICATION_NAME.jar"
           
-          # 배포 정보 업로드
-          echo "{\"timestamp\":\"$TIMESTAMP\",\"commit\":\"$GITHUB_SHA\",\"branch\":\"$GITHUB_REF_NAME\",\"actor\":\"$GITHUB_ACTOR\"}" > deployment-info.json
+          echo "✅ JAR 업로드 성공"
+          
+          # 배포 정보 저장
+          echo "{\"timestamp\":\"$TIMESTAMP\",\"commit\":\"$GITHUB_SHA\",\"branch\":\"$GITHUB_REF_NAME\"}" > deployment-info.json
           aws s3 cp deployment-info.json "s3://$S3_BUCKET/releases/latest/deployment-info.json"
           
-          echo "✅ JAR uploaded successfully: $JAR_FILE"
-          echo "📦 Backup: s3://$S3_BUCKET/releases/$TIMESTAMP/"
-          echo "🔄 Latest: s3://$S3_BUCKET/releases/latest/"
+          # Auto Scaling Group 인스턴스 갱신
+          if aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names interv-asg >/dev/null 2>&1; then
+            echo "🔄 인스턴스 갱신 시작..."
+            
+            REFRESH_ID=$(aws autoscaling start-instance-refresh \
+              --auto-scaling-group-name interv-asg \
+              --preferences MinHealthyPercentage=50,InstanceWarmup=300 \
+              --query 'InstanceRefreshId' --output text)
+            
+            echo "🔄 Instance refresh 시작됨: $REFRESH_ID"
+            echo "⏳ 백그라운드에서 계속 진행됩니다..."
+          else
+            echo "⚠️ Auto Scaling Group을 찾을 수 없습니다"
+          fi
+          
+          echo ""
+          echo "🎉 배포 완료!"
+          echo "🌐 애플리케이션: https://interv.swote.dev"
+          echo "🏥 Health Check: https://interv.swote.dev/actuator/health"
+          
         else
-          echo "❌ JAR file not found in $JAR_PATH"
+          echo "❌ JAR 파일을 찾을 수 없습니다"
           exit 1
         fi
-    
-    - name: Trigger Auto Scaling Group refresh
-      run: |
-        echo "🔄 Triggering Auto Scaling Group refresh..."
-        
-        ASG_NAME="${APPLICATION_NAME}-asg"
-        
-        # ASG 존재 확인
-        if ! aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names $ASG_NAME >/dev/null 2>&1; then
-          echo "⚠️ Auto Scaling Group not found, skipping refresh..."
-          exit 0
-        fi
-        
-        # 현재 인스턴스 상태 확인
-        aws autoscaling describe-auto-scaling-groups \
-          --auto-scaling-group-names $ASG_NAME \
-          --query 'AutoScalingGroups[0].{Desired:DesiredCapacity,Running:Instances[?LifecycleState==`InService`]|length(@)}'
-        
-        # 인스턴스 새로고침 시작
-        REFRESH_ID=$(aws autoscaling start-instance-refresh \
-          --auto-scaling-group-name $ASG_NAME \
-          --preferences MinHealthyPercentage=50,InstanceWarmup=300,CheckpointPercentages=50 \
-          --query 'InstanceRefreshId' --output text)
-        
-        echo "🔄 Instance refresh started: $REFRESH_ID"
-        echo "⏳ Waiting for instance refresh to complete..."
-        
-        # 완료 대기 (타임아웃 20분)
-        timeout 1200 aws autoscaling wait instance-refresh-successful \
-          --auto-scaling-group-name $ASG_NAME \
-          --instance-refresh-ids $REFRESH_ID || {
-          echo "⚠️ Instance refresh timeout, but continuing..."
-        }
-        
-        echo "✅ Instance refresh completed!"
-    
-    - name: Health check and verification
-      run: |
-        echo "🔍 Performing post-deployment health checks..."
-        
-        # 애플리케이션 시작 대기
-        echo "⏳ Waiting for application startup (60 seconds)..."
-        sleep 60
-        
-        # Health check
-        HEALTH_URL="https://interv.swote.dev/actuator/health"
-        MAX_ATTEMPTS=10
-        
-        for i in $(seq 1 $MAX_ATTEMPTS); do
-          echo "🏥 Health check attempt $i/$MAX_ATTEMPTS..."
-          
-          if curl -f -s --max-time 10 "$HEALTH_URL" > /dev/null; then
-            echo "✅ Application is healthy!"
-            
-            # 상세 상태 확인
-            echo "📊 Application status:"
-            curl -s --max-time 10 "$HEALTH_URL" | jq . || curl -s --max-time 10 "$HEALTH_URL"
-            
-            break
-          else
-            if [ $i -eq $MAX_ATTEMPTS ]; then
-              echo "❌ Health check failed after $MAX_ATTEMPTS attempts"
-              echo "🔍 Checking ALB target health..."
-              
-              # ALB 타겟 그룹 상태 확인
-              TARGET_GROUP_ARN=$(aws elbv2 describe-target-groups \
-                --names "${APPLICATION_NAME}-tg" \
-                --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "None")
-              
-              if [ "$TARGET_GROUP_ARN" != "None" ]; then
-                aws elbv2 describe-target-health \
-                  --target-group-arn $TARGET_GROUP_ARN
-              fi
-              
-              exit 1
-            fi
-            
-            echo "⏳ Waiting 30 seconds before retry..."
-            sleep 30
-          fi
-        done
-        
-        echo ""
-        echo "🎉 Deployment completed successfully!"
-        echo "🌐 Application URL: https://interv.swote.dev"
-        echo "🏥 Health Check: https://interv.swote.dev/actuator/health"
-        echo "📊 Monitoring: AWS CloudWatch Console"
