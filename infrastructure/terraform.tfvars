@@ -11,3 +11,7 @@ domain_name = "interv.swote.dev"
 # 보안 설정 (실제 값으로 변경 필요!)
 key_pair_name = "interv-keypair"
 db_password   = "interv2025!"
+
+cognito_user_pool_id   = ""
+cognito_client_id      = ""
+cognito_client_secret  = ""

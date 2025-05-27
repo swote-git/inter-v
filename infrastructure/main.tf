@@ -323,7 +323,7 @@ resource "aws_lb_listener" "app_http" {
   }
 }
 
-# IAM Role for EC2
+# IAM Role for EC2 (개선된 권한)
 resource "aws_iam_role" "ec2_role" {
   name = "${var.app_name}-ec2-role"
   assume_role_policy = jsonencode({
@@ -357,6 +357,29 @@ resource "aws_iam_role_policy" "ec2_policy" {
           aws_s3_bucket.app_storage.arn,
           "${aws_s3_bucket.app_storage.arn}/*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "cognito-idp:AdminGetUser",
+          "cognito-idp:ListUsers",
+          "cognito-idp:AdminListGroupsForUser"
+        ]
+        Resource = [
+          "arn:aws:cognito-idp:${var.aws_region}:*:userpool/${var.cognito_user_pool_id}"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = [
+          "arn:aws:logs:${var.aws_region}:*:log-group:/aws/ec2/${var.app_name}*"
+        ]
       }
     ]
   })
@@ -378,17 +401,24 @@ resource "aws_launch_template" "app" {
     name = aws_iam_instance_profile.ec2_profile.name
   }
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    app_name    = var.app_name
-    db_endpoint = aws_db_instance.main.endpoint
-    db_name     = aws_db_instance.main.db_name
-    db_username = aws_db_instance.main.username
-    db_password = var.db_password
-    s3_bucket   = aws_s3_bucket.app_storage.id
-    aws_region  = var.aws_region
+    app_name                = var.app_name
+    db_endpoint            = aws_db_instance.main.endpoint
+    db_name                = aws_db_instance.main.db_name
+    db_username            = aws_db_instance.main.username
+    db_password            = var.db_password
+    s3_bucket              = aws_s3_bucket.app_storage.id
+    aws_region             = var.aws_region
+    cognito_user_pool_id   = var.cognito_user_pool_id
+    cognito_client_id      = var.cognito_client_id
+    cognito_client_secret  = var.cognito_client_secret
   }))
   tag_specifications {
     resource_type = "instance"
     tags = { Name = "${var.app_name}-instance" }
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -397,6 +427,7 @@ resource "aws_autoscaling_group" "app" {
   vpc_zone_identifier = aws_subnet.private[*].id
   target_group_arns   = [aws_lb_target_group.app.arn]
   health_check_type   = "ELB"
+  health_check_grace_period = 300
   min_size            = 1
   max_size            = 3
   desired_capacity    = 2
@@ -404,6 +435,16 @@ resource "aws_autoscaling_group" "app" {
     id      = aws_launch_template.app.id
     version = "$Latest"
   }
+  
+  # 인스턴스 새로고침 설정
+  instance_refresh {
+    strategy = "Rolling"
+    preferences {
+      min_healthy_percentage = 50
+      instance_warmup        = 300
+    }
+  }
+  
   tag {
     key                 = "Name"
     value               = "${var.app_name}-asg-instance"
@@ -423,6 +464,13 @@ resource "aws_route53_record" "main" {
   }
 }
 
+# CloudWatch Log Group (선택적)
+resource "aws_cloudwatch_log_group" "app" {
+  name              = "/aws/ec2/${var.app_name}"
+  retention_in_days = 14
+  tags = { Name = "${var.app_name}-logs" }
+}
+
 # Outputs
 output "alb_dns_name" {
   value = aws_lb.main.dns_name
@@ -438,4 +486,14 @@ output "application_url" {
 
 output "key_pair_name" {
   value = var.key_pair_name
+}
+
+output "rds_endpoint" {
+  value = aws_db_instance.main.endpoint
+  sensitive = true
+}
+
+output "cognito_user_pool_id" {
+  value = var.cognito_user_pool_id
+  sensitive = true
 }
