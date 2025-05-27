@@ -36,7 +36,7 @@ jobs:
         cd infrastructure/
         terraform init
     
-    - name: Pre-deployment Resource Import
+    - name: Bulletproof Resource Import
       env:
         TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
         TF_VAR_key_pair_name: ${{ secrets.EC2_KEY_PAIR_NAME }}
@@ -46,72 +46,141 @@ jobs:
       run: |
         cd infrastructure/
         
-        echo "📥 기존 리소스 Import 및 Route53 문제 해결..."
+        echo "🛡️ 강력한 리소스 Import 및 예외처리 시작..."
+        echo ""
         
-        # 1. 핵심 리소스들 import (실패해도 계속 진행)
-        echo "🏗️ 핵심 리소스 Import:"
-        terraform import aws_db_subnet_group.main interv-db-subnet-group 2>/dev/null || echo "  ⚠️ DB Subnet Group: 이미 존재하거나 Import 실패"
-        terraform import aws_iam_role.ec2_role interv-ec2-role 2>/dev/null || echo "  ⚠️ IAM Role: 이미 존재하거나 Import 실패"
+        # Import 함수 정의 (실패해도 계속 진행)
+        bulletproof_import() {
+            local resource_name="$1"
+            local terraform_resource="$2"
+            local aws_resource_id="$3"
+            local check_command="$4"
+            
+            echo "🔍 $resource_name 처리 중..."
+            
+            # 이미 Terraform state에 있는지 확인
+            if terraform state show "$terraform_resource" >/dev/null 2>&1; then
+                echo "  ✅ 이미 state에 존재: $resource_name"
+                return 0
+            fi
+            
+            # AWS에 리소스가 존재하는지 확인
+            if eval "$check_command" >/dev/null 2>&1; then
+                echo "  📥 AWS에서 발견 - Import 시도: $aws_resource_id"
+                
+                if terraform import "$terraform_resource" "$aws_resource_id" 2>/dev/null; then
+                    echo "  ✅ Import 성공: $resource_name"
+                else
+                    echo "  ⚠️ Import 실패하지만 계속 진행: $resource_name"
+                fi
+            else
+                echo "  ℹ️ AWS에 없음 - 새로 생성될 예정: $resource_name"
+            fi
+            echo ""
+        }
         
-        # ALB 관련
+        # 핵심 리소스들 Import
+        echo "🏗️ 핵심 인프라 리소스:"
+        
+        bulletproof_import "DB Subnet Group" \
+            "aws_db_subnet_group.main" \
+            "interv-db-subnet-group" \
+            "aws rds describe-db-subnet-groups --db-subnet-group-name interv-db-subnet-group"
+        
+        bulletproof_import "IAM Role" \
+            "aws_iam_role.ec2_role" \
+            "interv-ec2-role" \
+            "aws iam get-role --role-name interv-ec2-role"
+        
+        bulletproof_import "IAM Role Policy" \
+            "aws_iam_role_policy.ec2_policy" \
+            "interv-ec2-role:interv-ec2-policy" \
+            "aws iam get-role-policy --role-name interv-ec2-role --policy-name interv-ec2-policy"
+        
+        bulletproof_import "IAM Instance Profile" \
+            "aws_iam_instance_profile.ec2_profile" \
+            "interv-ec2-profile" \
+            "aws iam get-instance-profile --instance-profile-name interv-ec2-profile"
+        
+        # Load Balancer 리소스들
+        echo "⚖️ Load Balancer 리소스:"
+        
         ALB_ARN=$(aws elbv2 describe-load-balancers --names interv-alb --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null || echo "None")
         if [ "$ALB_ARN" != "None" ] && [ "$ALB_ARN" != "null" ]; then
-          terraform import aws_lb.main "$ALB_ARN" 2>/dev/null || echo "  ⚠️ ALB: 이미 존재하거나 Import 실패"
+            bulletproof_import "Application Load Balancer" \
+                "aws_lb.main" \
+                "$ALB_ARN" \
+                "aws elbv2 describe-load-balancers --load-balancer-arns $ALB_ARN"
         fi
         
         TG_ARN=$(aws elbv2 describe-target-groups --names interv-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "None")
         if [ "$TG_ARN" != "None" ] && [ "$TG_ARN" != "null" ]; then
-          terraform import aws_lb_target_group.app "$TG_ARN" 2>/dev/null || echo "  ⚠️ Target Group: 이미 존재하거나 Import 실패"
+            bulletproof_import "Target Group" \
+                "aws_lb_target_group.app" \
+                "$TG_ARN" \
+                "aws elbv2 describe-target-groups --target-group-arns $TG_ARN"
         fi
         
-        # Auto Scaling Group
-        terraform import aws_autoscaling_group.app interv-asg 2>/dev/null || echo "  ⚠️ ASG: 이미 존재하거나 Import 실패"
+        # Auto Scaling 리소스들
+        echo "🔄 Auto Scaling 리소스:"
         
-        # Launch Template
+        bulletproof_import "Auto Scaling Group" \
+            "aws_autoscaling_group.app" \
+            "interv-asg" \
+            "aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names interv-asg"
+        
         LT_ID=$(aws ec2 describe-launch-templates --launch-template-names interv-lt --query 'LaunchTemplates[0].LaunchTemplateId' --output text 2>/dev/null || echo "None")
         if [ "$LT_ID" != "None" ] && [ "$LT_ID" != "null" ]; then
-          terraform import aws_launch_template.app "$LT_ID" 2>/dev/null || echo "  ⚠️ Launch Template: 이미 존재하거나 Import 실패"
+            bulletproof_import "Launch Template" \
+                "aws_launch_template.app" \
+                "$LT_ID" \
+                "aws ec2 describe-launch-templates --launch-template-ids $LT_ID"
         fi
         
-        # 2. Route53 레코드 특별 처리
-        echo ""
-        echo "🌍 Route53 레코드 처리:"
+        # 기타 리소스들
+        echo "📦 기타 리소스:"
         
-        # Hosted Zone ID 확인
-        HOSTED_ZONE_ID=$(aws route53 list-hosted-zones \
-          --query "HostedZones[?Name=='swote.dev.'].Id" \
-          --output text | cut -d'/' -f3 2>/dev/null || echo "")
+        bulletproof_import "RDS Instance" \
+            "aws_db_instance.main" \
+            "interv-db" \
+            "aws rds describe-db-instances --db-instance-identifier interv-db"
         
+        # S3 Bucket
+        S3_BUCKET=$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'interv-storage-')].Name" --output text 2>/dev/null || echo "")
+        if [ -n "$S3_BUCKET" ] && [ "$S3_BUCKET" != "None" ]; then
+            bulletproof_import "S3 Bucket" \
+                "aws_s3_bucket.app_storage" \
+                "$S3_BUCKET" \
+                "aws s3api head-bucket --bucket $S3_BUCKET"
+                
+            bulletproof_import "S3 Bucket Versioning" \
+                "aws_s3_bucket_versioning.app_storage" \
+                "$S3_BUCKET" \
+                "aws s3api get-bucket-versioning --bucket $S3_BUCKET"
+        fi
+        
+        # Route53 특별 처리
+        echo "🌍 Route53 레코드:"
+        HOSTED_ZONE_ID=$(aws route53 list-hosted-zones --query "HostedZones[?Name=='swote.dev.'].Id" --output text | cut -d'/' -f3 2>/dev/null || echo "")
         if [ -n "$HOSTED_ZONE_ID" ]; then
-          echo "  📍 Hosted Zone 발견: $HOSTED_ZONE_ID"
-          
-          # 기존 A 레코드 확인
-          EXISTING_RECORD=$(aws route53 list-resource-record-sets \
-            --hosted-zone-id "$HOSTED_ZONE_ID" \
-            --query "ResourceRecordSets[?Name=='interv.swote.dev.' && Type=='A']" \
-            --output json 2>/dev/null)
-          
-          if [ "$EXISTING_RECORD" != "[]" ] && [ -n "$EXISTING_RECORD" ]; then
-            echo "  ✅ 기존 A 레코드 발견 - Import 시도"
+            EXISTING_RECORD=$(aws route53 list-resource-record-sets \
+                --hosted-zone-id "$HOSTED_ZONE_ID" \
+                --query "ResourceRecordSets[?Name=='interv.swote.dev.' && Type=='A']" \
+                --output json 2>/dev/null)
             
-            # Route53 레코드 import
-            IMPORT_ID="${HOSTED_ZONE_ID}_interv.swote.dev_A"
-            if terraform import aws_route53_record.main "$IMPORT_ID" 2>/dev/null; then
-              echo "  📥 Route53 레코드 Import 성공!"
-            else
-              echo "  ⚠️ Route53 Import 실패 - 수동으로 레코드를 삭제하거나 조건부 생성으로 처리됩니다"
+            if [ "$EXISTING_RECORD" != "[]" ] && [ -n "$EXISTING_RECORD" ]; then
+                IMPORT_ID="${HOSTED_ZONE_ID}_interv.swote.dev_A"
+                bulletproof_import "Route53 A Record" \
+                    "aws_route53_record.main" \
+                    "$IMPORT_ID" \
+                    "echo true"
             fi
-          else
-            echo "  ℹ️ 기존 A 레코드 없음 - 새로 생성됩니다"
-          fi
-        else
-          echo "  ❌ Hosted Zone을 찾을 수 없습니다"
         fi
         
+        echo "✅ 강력한 Import 과정 완료!"
         echo ""
-        echo "✅ Import 과정 완료!"
     
-    - name: Deploy Infrastructure
+    - name: Smart Terraform Deployment
       env:
         TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
         TF_VAR_key_pair_name: ${{ secrets.EC2_KEY_PAIR_NAME }}
@@ -121,33 +190,75 @@ jobs:
       run: |
         cd infrastructure/
         
-        echo "📋 Terraform Plan 실행..."
-        if terraform plan -out=tfplan; then
-          echo "✅ Plan 성공!"
-        else
-          echo "❌ Plan 실패 - 로그를 확인해주세요"
-          exit 1
+        echo "🧠 스마트 Terraform 배포 시작..."
+        
+        # Plan 실행 (여러 번 시도)
+        PLAN_SUCCESS=false
+        for attempt in 1 2 3; do
+            echo "📋 Plan 시도 $attempt/3..."
+            
+            if terraform plan -out=tfplan 2>/dev/null; then
+                echo "✅ Plan 성공!"
+                PLAN_SUCCESS=true
+                break
+            else
+                echo "⚠️ Plan 실패 - $attempt번째 시도"
+                
+                if [ $attempt -lt 3 ]; then
+                    echo "🔄 30초 대기 후 재시도..."
+                    sleep 30
+                    
+                    # Terraform 상태 새로고침
+                    terraform refresh -auto-approve 2>/dev/null || true
+                fi
+            fi
+        done
+        
+        if [ "$PLAN_SUCCESS" = false ]; then
+            echo "❌ 3번의 Plan 시도 모두 실패"
+            echo "🔍 Plan 상세 로그:"
+            terraform plan 2>&1 || true
+            exit 1
+        fi
+        
+        # Apply 실행
+        echo ""
+        echo "🚀 Infrastructure 배포 실행..."
+        
+        APPLY_SUCCESS=false
+        for attempt in 1 2; do
+            echo "🔧 Apply 시도 $attempt/2..."
+            
+            if terraform apply tfplan; then
+                echo "✅ Apply 성공!"
+                APPLY_SUCCESS=true
+                break
+            else
+                echo "⚠️ Apply 실패 - $attempt번째 시도"
+                
+                if [ $attempt -lt 2 ]; then
+                    echo "🔄 새로운 Plan 생성 후 재시도..."
+                    terraform plan -out=tfplan
+                fi
+            fi
+        done
+        
+        if [ "$APPLY_SUCCESS" = false ]; then
+            echo "❌ Apply 실패"
+            exit 1
+        fi
+        
+        # Output 수집
+        echo "📊 Terraform Outputs 수집..."
+        terraform output -json > terraform-outputs.json || true
+        
+        S3_BUCKET=$(terraform output -raw s3_bucket_name 2>/dev/null || echo "")
+        if [ -n "$S3_BUCKET" ]; then
+            echo "S3_BUCKET_NAME=$S3_BUCKET" >> $GITHUB_ENV
+            echo "🪣 S3 Bucket: $S3_BUCKET"
         fi
         
         echo ""
-        echo "🚀 Infrastructure 배포 시작..."
-        if terraform apply tfplan; then
-          echo "✅ 배포 성공!"
-        else
-          echo "❌ 배포 실패"
-          exit 1
-        fi
-        
-        echo "📊 Output 저장..."
-        terraform output -json > terraform-outputs.json
-        
-        # S3 버킷 이름 저장
-        S3_BUCKET=$(terraform output -raw s3_bucket_name 2>/dev/null || echo "")
-        if [ -n "$S3_BUCKET" ]; then
-          echo "S3_BUCKET_NAME=$S3_BUCKET" >> $GITHUB_ENV
-          echo "🪣 S3 Bucket: $S3_BUCKET"
-        fi
-        
         echo "🎉 Infrastructure 배포 완료!"
     
     outputs:
@@ -207,11 +318,10 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
     
-    - name: Deploy JAR and refresh instances
+    - name: Deploy Application
       run: |
-        echo "🚀 애플리케이션 배포 시작..."
+        echo "🚀 애플리케이션 배포..."
         
-        # S3 버킷 이름 가져오기
         cd infrastructure/
         terraform init
         S3_BUCKET=$(terraform output -raw s3_bucket_name 2>/dev/null || echo "")
@@ -221,9 +331,7 @@ jobs:
           exit 1
         fi
         
-        echo "📤 S3에 업로드: $S3_BUCKET"
-        
-        # JAR 파일 찾기
+        # JAR 파일 업로드
         if [ -d "../inter-v" ]; then
           JAR_PATH="../inter-v/target"
         elif [ -d "../BE/inter-v" ]; then
@@ -237,34 +345,24 @@ jobs:
         if [ -n "$JAR_FILE" ]; then
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           
-          # 백업 및 최신 버전 업로드
           aws s3 cp "$JAR_FILE" "s3://$S3_BUCKET/releases/$TIMESTAMP/$APPLICATION_NAME.jar"
           aws s3 cp "$JAR_FILE" "s3://$S3_BUCKET/releases/latest/$APPLICATION_NAME.jar"
           
           echo "✅ JAR 업로드 성공"
           
-          # 배포 정보 저장
-          echo "{\"timestamp\":\"$TIMESTAMP\",\"commit\":\"$GITHUB_SHA\",\"branch\":\"$GITHUB_REF_NAME\"}" > deployment-info.json
-          aws s3 cp deployment-info.json "s3://$S3_BUCKET/releases/latest/deployment-info.json"
-          
           # Auto Scaling Group 인스턴스 갱신
           if aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names interv-asg >/dev/null 2>&1; then
-            echo "🔄 인스턴스 갱신 시작..."
-            
-            REFRESH_ID=$(aws autoscaling start-instance-refresh \
+            echo "🔄 인스턴스 갱신..."
+            aws autoscaling start-instance-refresh \
               --auto-scaling-group-name interv-asg \
               --preferences MinHealthyPercentage=50,InstanceWarmup=300 \
-              --query 'InstanceRefreshId' --output text)
-            
-            echo "🔄 Instance refresh 시작됨: $REFRESH_ID"
-            echo "⏳ 백그라운드에서 계속 진행됩니다..."
-          else
-            echo "⚠️ Auto Scaling Group을 찾을 수 없습니다"
+              --query 'InstanceRefreshId' --output text
+            echo "✅ 인스턴스 갱신 시작됨"
           fi
           
           echo ""
           echo "🎉 배포 완료!"
-          echo "🌐 애플리케이션: https://interv.swote.dev"
+          echo "🌐 Application: https://interv.swote.dev"
           echo "🏥 Health Check: https://interv.swote.dev/actuator/health"
           
         else
