@@ -38,7 +38,7 @@ jobs:
         echo "🏗️ Initializing Terraform..."
         terraform init
     
-    - name: Handle Resource Conflicts and Deploy
+    - name: Smart Resource Discovery and Import
       env:
         TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
         TF_VAR_key_pair_name: ${{ secrets.EC2_KEY_PAIR_NAME }}
@@ -48,83 +48,143 @@ jobs:
       run: |
         cd infrastructure/
         
-        echo "🔍 Attempting initial terraform plan..."
+        echo "🔍 Discovering existing AWS resources..."
         
-        # 첫 번째 plan 시도
-        PLAN_EXIT_CODE=0
-        terraform plan -out=tfplan || PLAN_EXIT_CODE=$?
+        # 리소스 검색 및 자동 import 함수
+        auto_import_resource() {
+            local resource_type="$1"
+            local resource_name="$2"
+            local aws_resource_id="$3"
+            local check_command="$4"
+            
+            echo "  🔍 Checking $resource_type: $resource_name"
+            
+            if eval "$check_command" >/dev/null 2>&1; then
+                echo "    ✅ Found existing resource: $aws_resource_id"
+                if terraform import "$resource_name" "$aws_resource_id" 2>/dev/null; then
+                    echo "    📥 Successfully imported: $resource_name"
+                else
+                    echo "    ⚠️ Import failed or already imported: $resource_name"
+                fi
+            else
+                echo "    ❌ Resource not found: $resource_type"
+            fi
+        }
         
-        if [ $PLAN_EXIT_CODE -ne 0 ]; then
-          echo "⚠️ Initial plan failed. Attempting to import existing resources..."
-          
-          # tfplan 파일이 있으면 삭제
-          rm -f tfplan
-          
-          # 기존 리소스들을 import
-          echo "📥 Importing existing resources..."
-          
-          # DB Subnet Group
-          if aws rds describe-db-subnet-groups --db-subnet-group-name interv-db-subnet-group >/dev/null 2>&1; then
-            echo "Importing DB Subnet Group..."
-            terraform import aws_db_subnet_group.main interv-db-subnet-group || echo "Import failed or already exists"
-          fi
-          
-          # IAM Role
-          if aws iam get-role --role-name interv-ec2-role >/dev/null 2>&1; then
-            echo "Importing IAM Role..."
-            terraform import aws_iam_role.ec2_role interv-ec2-role || echo "Import failed or already exists"
-          fi
-          
-          # IAM Role Policy
-          if aws iam get-role-policy --role-name interv-ec2-role --policy-name interv-ec2-policy >/dev/null 2>&1; then
-            echo "Importing IAM Role Policy..."
-            terraform import aws_iam_role_policy.ec2_policy interv-ec2-role:interv-ec2-policy || echo "Import failed or already exists"
-          fi
-          
-          # IAM Instance Profile
-          if aws iam get-instance-profile --instance-profile-name interv-ec2-profile >/dev/null 2>&1; then
-            echo "Importing IAM Instance Profile..."
-            terraform import aws_iam_instance_profile.ec2_profile interv-ec2-profile || echo "Import failed or already exists"
-          fi
-          
-          # Load Balancer
-          ALB_ARN=$(aws elbv2 describe-load-balancers --names interv-alb --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null || echo "None")
-          if [ "$ALB_ARN" != "None" ] && [ "$ALB_ARN" != "null" ]; then
-            echo "Importing Load Balancer: $ALB_ARN"
-            terraform import aws_lb.main "$ALB_ARN" || echo "Import failed or already exists"
-          fi
-          
-          # Target Group
-          TG_ARN=$(aws elbv2 describe-target-groups --names interv-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "None")
-          if [ "$TG_ARN" != "None" ] && [ "$TG_ARN" != "null" ]; then
-            echo "Importing Target Group: $TG_ARN"
-            terraform import aws_lb_target_group.app "$TG_ARN" || echo "Import failed or already exists"
-          fi
-          
-          # Auto Scaling Group
-          if aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names interv-asg >/dev/null 2>&1; then
-            echo "Importing Auto Scaling Group..."
-            terraform import aws_autoscaling_group.app interv-asg || echo "Import failed or already exists"
-          fi
-          
-          # Launch Template
-          LT_ID=$(aws ec2 describe-launch-templates --launch-template-names interv-lt --query 'LaunchTemplates[0].LaunchTemplateId' --output text 2>/dev/null || echo "None")
-          if [ "$LT_ID" != "None" ] && [ "$LT_ID" != "null" ]; then
-            echo "Importing Launch Template: $LT_ID"
-            terraform import aws_launch_template.app "$LT_ID" || echo "Import failed or already exists"
-          fi
-          
-          echo "✅ Import process completed!"
-          
-          # Import 후 다시 plan 실행
-          echo "📋 Running terraform plan after import..."
-          terraform plan -out=tfplan
-          
-        else
-          echo "✅ Initial plan succeeded!"
+        echo ""
+        echo "📥 Starting automatic resource import..."
+        echo ""
+        
+        # 1. VPC 관련 리소스 (있다면)
+        echo "🌐 VPC Resources:"
+        VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=interv-vpc" --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo "None")
+        if [ "$VPC_ID" != "None" ] && [ "$VPC_ID" != "null" ]; then
+            auto_import_resource "VPC" "aws_vpc.main" "$VPC_ID" "aws ec2 describe-vpcs --vpc-ids $VPC_ID"
         fi
         
-        # Apply 실행
+        # 2. S3 Bucket
+        echo "🪣 S3 Resources:"
+        S3_BUCKET=$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'interv-storage-')].Name" --output text 2>/dev/null || echo "None")
+        if [ "$S3_BUCKET" != "None" ] && [ "$S3_BUCKET" != "null" ]; then
+            auto_import_resource "S3 Bucket" "aws_s3_bucket.app_storage" "$S3_BUCKET" "aws s3api head-bucket --bucket $S3_BUCKET"
+            auto_import_resource "S3 Versioning" "aws_s3_bucket_versioning.app_storage" "$S3_BUCKET" "aws s3api get-bucket-versioning --bucket $S3_BUCKET"
+        fi
+        
+        # 3. IAM Resources
+        echo "👤 IAM Resources:"
+        auto_import_resource "IAM Role" "aws_iam_role.ec2_role" "interv-ec2-role" "aws iam get-role --role-name interv-ec2-role"
+        auto_import_resource "IAM Role Policy" "aws_iam_role_policy.ec2_policy" "interv-ec2-role:interv-ec2-policy" "aws iam get-role-policy --role-name interv-ec2-role --policy-name interv-ec2-policy"
+        auto_import_resource "IAM Instance Profile" "aws_iam_instance_profile.ec2_profile" "interv-ec2-profile" "aws iam get-instance-profile --instance-profile-name interv-ec2-profile"
+        
+        # 4. RDS Resources
+        echo "🗄️ RDS Resources:"
+        auto_import_resource "DB Subnet Group" "aws_db_subnet_group.main" "interv-db-subnet-group" "aws rds describe-db-subnet-groups --db-subnet-group-name interv-db-subnet-group"
+        auto_import_resource "RDS Instance" "aws_db_instance.main" "interv-db" "aws rds describe-db-instances --db-instance-identifier interv-db"
+        
+        # 5. Load Balancer Resources
+        echo "⚖️ Load Balancer Resources:"
+        ALB_ARN=$(aws elbv2 describe-load-balancers --names interv-alb --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null || echo "None")
+        if [ "$ALB_ARN" != "None" ] && [ "$ALB_ARN" != "null" ]; then
+            auto_import_resource "Application Load Balancer" "aws_lb.main" "$ALB_ARN" "aws elbv2 describe-load-balancers --load-balancer-arns $ALB_ARN"
+            
+            # ALB Listener
+            LISTENER_ARN=$(aws elbv2 describe-listeners --load-balancer-arn "$ALB_ARN" --query 'Listeners[0].ListenerArn' --output text 2>/dev/null || echo "None")
+            if [ "$LISTENER_ARN" != "None" ] && [ "$LISTENER_ARN" != "null" ]; then
+                auto_import_resource "ALB Listener" "aws_lb_listener.app" "$LISTENER_ARN" "aws elbv2 describe-listeners --listener-arns $LISTENER_ARN"
+            fi
+        fi
+        
+        TG_ARN=$(aws elbv2 describe-target-groups --names interv-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "None")
+        if [ "$TG_ARN" != "None" ] && [ "$TG_ARN" != "null" ]; then
+            auto_import_resource "Target Group" "aws_lb_target_group.app" "$TG_ARN" "aws elbv2 describe-target-groups --target-group-arns $TG_ARN"
+        fi
+        
+        # 6. Auto Scaling Resources
+        echo "🔄 Auto Scaling Resources:"
+        auto_import_resource "Auto Scaling Group" "aws_autoscaling_group.app" "interv-asg" "aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names interv-asg"
+        
+        LT_ID=$(aws ec2 describe-launch-templates --launch-template-names interv-lt --query 'LaunchTemplates[0].LaunchTemplateId' --output text 2>/dev/null || echo "None")
+        if [ "$LT_ID" != "None" ] && [ "$LT_ID" != "null" ]; then
+            auto_import_resource "Launch Template" "aws_launch_template.app" "$LT_ID" "aws ec2 describe-launch-templates --launch-template-ids $LT_ID"
+        fi
+        
+        # 7. Elastic IP Resources
+        echo "🌐 Elastic IP Resources:"
+        EIP_IDS=$(aws ec2 describe-addresses --query 'Addresses[].AllocationId' --output text 2>/dev/null)
+        if [ -n "$EIP_IDS" ]; then
+            EIP_ARRAY=($EIP_IDS)
+            echo "    Found ${#EIP_ARRAY[@]} EIPs"
+            
+            # NAT Gateway EIPs
+            for i in 0 1; do
+                if [ $i -lt ${#EIP_ARRAY[@]} ]; then
+                    EIP_ID=${EIP_ARRAY[$i]}
+                    auto_import_resource "EIP[$i]" "aws_eip.nat[$i]" "$EIP_ID" "aws ec2 describe-addresses --allocation-ids $EIP_ID"
+                fi
+            done
+        fi
+        
+        # 8. Certificate Resources
+        echo "🔐 Certificate Resources:"
+        CERT_ARN=$(aws acm list-certificates --query "CertificateSummaryList[?DomainName=='interv.swote.dev'].CertificateArn" --output text 2>/dev/null || echo "None")
+        if [ "$CERT_ARN" != "None" ] && [ "$CERT_ARN" != "null" ]; then
+            auto_import_resource "ACM Certificate" "aws_acm_certificate.main" "$CERT_ARN" "aws acm describe-certificate --certificate-arn $CERT_ARN"
+        fi
+        
+        # 9. Security Groups
+        echo "🔒 Security Group Resources:"
+        ALB_SG_ID=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=interv-alb-sg-*" --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || echo "None")
+        if [ "$ALB_SG_ID" != "None" ] && [ "$ALB_SG_ID" != "null" ]; then
+            auto_import_resource "ALB Security Group" "aws_security_group.alb" "$ALB_SG_ID" "aws ec2 describe-security-groups --group-ids $ALB_SG_ID"
+        fi
+        
+        EC2_SG_ID=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=interv-ec2-sg-*" --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || echo "None")
+        if [ "$EC2_SG_ID" != "None" ] && [ "$EC2_SG_ID" != "null" ]; then
+            auto_import_resource "EC2 Security Group" "aws_security_group.ec2" "$EC2_SG_ID" "aws ec2 describe-security-groups --group-ids $EC2_SG_ID"
+        fi
+        
+        RDS_SG_ID=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=interv-rds-sg-*" --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || echo "None")
+        if [ "$RDS_SG_ID" != "None" ] && [ "$RDS_SG_ID" != "null" ]; then
+            auto_import_resource "RDS Security Group" "aws_security_group.rds" "$RDS_SG_ID" "aws ec2 describe-security-groups --group-ids $RDS_SG_ID"
+        fi
+        
+        echo ""
+        echo "✅ Resource discovery and import completed!"
+        echo ""
+    
+    - name: Terraform Plan and Apply
+      env:
+        TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+        TF_VAR_key_pair_name: ${{ secrets.EC2_KEY_PAIR_NAME }}
+        TF_VAR_aws_region: ${{ env.AWS_REGION }}
+        TF_VAR_app_name: ${{ env.APPLICATION_NAME }}
+        TF_VAR_domain_name: "interv.swote.dev"
+      run: |
+        cd infrastructure/
+        
+        echo "📋 Running terraform plan after import..."
+        terraform plan -out=tfplan
+        
         echo "🚀 Applying infrastructure changes..."
         terraform apply tfplan
         
@@ -132,9 +192,11 @@ jobs:
         terraform output -json > terraform-outputs.json
         
         # S3 버킷 이름을 GitHub Environment에 저장
-        S3_BUCKET=$(terraform output -raw s3_bucket_name)
-        echo "S3_BUCKET_NAME=$S3_BUCKET" >> $GITHUB_ENV
-        echo "🪣 S3 Bucket: $S3_BUCKET"
+        S3_BUCKET=$(terraform output -raw s3_bucket_name 2>/dev/null || echo "")
+        if [ -n "$S3_BUCKET" ]; then
+            echo "S3_BUCKET_NAME=$S3_BUCKET" >> $GITHUB_ENV
+            echo "🪣 S3 Bucket: $S3_BUCKET"
+        fi
     
     outputs:
       s3_bucket_name: ${{ env.S3_BUCKET_NAME }}
