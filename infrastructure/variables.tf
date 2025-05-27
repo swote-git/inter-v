@@ -28,3 +28,15 @@ variable "db_password" {
   type        = string
   sensitive   = true
 }
+
+variable "use_existing_vpc" {
+  description = "Use existing VPC instead of creating new one"
+  type        = bool
+  default     = true
+}
+
+variable "use_existing_eips" {
+  description = "Use existing EIPs instead of creating new ones"  
+  type        = bool
+  default     = true
+}
