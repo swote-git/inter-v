@@ -49,16 +49,17 @@ public class InterviewController {
 
     @PostMapping
     public ResponseEntity<CommonResponse<InterviewSession>> createInterview(
-            CurrentUser currentUser,
+            @RequestParam Integer userId,
             @RequestBody InterviewService.CreateInterviewRequest request
     ) {
-        InterviewSession interview = interviewService.createInterview(
-                currentUser.id(),
-                request
-        );
+        InterviewSession interview = interviewService.createInterview(userId, request);
+        interview.setUser(interviewService.getUserById(userId));
+        interview.setResume(interviewService.getResumeById(request.getResumeId()));
+        interview.setPosition(interviewService.getPositionById(request.getPositionId()));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(CommonResponse.ok(interview));
     }
+    
 
     @PostMapping("/{interviewId}/start")
     public ResponseEntity<Void> startInterview(

@@ -1,79 +1,199 @@
-# application.yml
+# application.yml - AWS 배포용 통합 설정
 spring:
   profiles:
-    active: local
-  application:
-    name: inter-v
+    active: ${SPRING_PROFILES_ACTIVE:local}
   datasource:
-    url: jdbc:mysql://localhost:3306/interv?serverTimezone=UTC&characterEncoding=UTF-8
-    username: root
-    password: root
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:interv}?serverTimezone=UTC&characterEncoding=UTF-8&useSSL=false
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 30000
+      connection-timeout: 30000
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${JPA_DDL_AUTO:update}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
-        show_sql: true
-        format_sql: true
+        show_sql: ${SHOW_SQL:true}
+        format_sql: ${FORMAT_SQL:true}
+    data:
+      jpa:
+        repositories:
+          enabled: true
+  security:
+    oauth2:
+      client:
+        registration:
+          cognito:
+            client-id: ${COGNITO_CLIENT_ID:dummy-client-id}
+            client-secret: ${COGNITO_CLIENT_SECRET:dummy-client-secret}
+            scope: openid, email, phone
+            redirect-uri: ${COGNITO_REDIRECT_URI:https://interv.swote.dev/login/oauth2/code/cognito}
+            client-name: Inter-V Cognito
+            authorization-grant-type: authorization_code
+        provider:
+          cognito:
+            issuer-uri: https://cognito-idp.${AWS_REGION:ap-northeast-2}.amazonaws.com/${COGNITO_USER_POOL_ID:dummy-pool-id}
+            user-name-attribute: email
+      resourceserver:
+        jwt:
+          issuer-uri: https://cognito-idp.${AWS_REGION:ap-northeast-2}.amazonaws.com/${COGNITO_USER_POOL_ID:dummy-pool-id}
+  jackson:
+    serialization:
+      indent_output: true
+      write-dates-as-timestamps: false
+    time-zone: UTC
   servlet:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
 
+# AWS 서비스 설정 (IAM Role 기반 - AccessKey/SecretKey 제거)
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+  # credentials 섹션을 완전히 제거 - EC2에서 IAM Role 사용
+  s3:
+    bucket: ${S3_BUCKET_NAME:interv-storage}
+  cognito:
+    region: ${AWS_REGION:ap-northeast-2}
+    user-pool-id: ${COGNITO_USER_POOL_ID:dummy-pool-id}
+    client-id: ${COGNITO_CLIENT_ID:dummy-client-id}
+    client-secret: ${COGNITO_CLIENT_SECRET:dummy-client-secret}
+    logout-redirect-uri: ${COGNITO_LOGOUT_REDIRECT_URI:https://interv.swote.dev/}
+
+# 서버 설정
 server:
-  port: 8080
+  port: ${PORT:8080}
   servlet:
     context-path: /
   compression:
     enabled: true
     mime-types: application/json,application/xml,text/html,text/xml,text/plain
 
-aws:
-  region: ap-northeast-2
-  credentials:
-    accessKey: ${AWS_ACCESS_KEY}
-    secretKey: ${AWS_SECRET_KEY}
-  s3:
-    bucket: interv-storage
-
-llm:
-  api:
-    url: https://api.openai.com/v1
-    key: https://api.openai.com/v1
-
+# 보안 설정
 public-data-contest:
   security:
     saltSize: 16
 
+# LLM API 설정
+llm:
+  api:
+    url: ${LLM_API_URL:http://localhost:8000}
+    key: ${LLM_API_KEY:dummy-api-key}
+
+# 로깅 설정
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    dev.swote.interv: ${LOG_LEVEL_APP:DEBUG}
+    org.springframework: ${LOG_LEVEL_SPRING:WARN}
+    org.springframework.security: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
 ---
+# 로컬 개발 환경 설정
 spring:
   config:
     activate:
-      on-profile: dev
+      on-profile: local
   datasource:
-    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?serverTimezone=UTC&characterEncoding=UTF-8
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        show_sql: true
+        format_sql: true
+  security:
+    oauth2:
+      client:
+        registration:
+          cognito:
+            client-id: local-dummy-client
+            client-secret: local-dummy-secret
+            scope: openid, email
+            redirect-uri: http://localhost:8080/login/oauth2/code/cognito
+        provider:
+          cognito:
+            issuer-uri: https://cognito-idp.ap-northeast-2.amazonaws.com/ap-northeast-2_dummy
 
-server:
-  port: ${PORT:8080}
+aws:
+  region: ap-northeast-2
+  # 로컬에서는 AWS 프로파일 또는 환경 변수 사용
+  s3:
+    bucket: local-test-bucket
+  cognito:
+    user-pool-id: local-dummy-pool
+    client-id: local-dummy-client
+    client-secret: local-dummy-secret
+
+logging:
+  level:
+    root: INFO
+    dev.swote.interv: DEBUG
+    org.springframework.security: DEBUG
 
 ---
+# 운영 환경 설정
 spring:
   config:
     activate:
       on-profile: prod
   datasource:
-    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?serverTimezone=UTC&characterEncoding=UTF-8
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?serverTimezone=UTC&characterEncoding=UTF-8&useSSL=true&allowPublicKeyRetrieval=true
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 600000
+      connection-timeout: 30000
+      leak-detection-threshold: 60000
   jpa:
+    hibernate:
+      ddl-auto: update
     properties:
       hibernate:
         show_sql: false
         format_sql: false
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+  jackson:
+    serialization:
+      indent_output: false
+  security:
+    oauth2:
+      client:
+        registration:
+          cognito:
+            redirect-uri: https://interv.swote.dev/login/oauth2/code/cognito
+        provider:
+          cognito:
+            issuer-uri: https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}
 
-server:
-  port: ${PORT:8080}
+# 운영 환경 로깅
+logging:
+  level:
+    root: WARN
+    dev.swote.interv: INFO
+    org.springframework.security: WARN
+  file:
+    name: /var/log/interv/application.log
+    max-size: 10MB
+    max-history: 10

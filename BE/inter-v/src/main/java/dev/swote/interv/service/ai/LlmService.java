@@ -14,7 +14,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-
+import org.springframework.http.HttpMethod;
+import org.springframework.core.ParameterizedTypeReference;
 import java.util.*;
 
 @Slf4j
@@ -43,56 +44,116 @@ public class LlmService {
     );
 
     public List<Question> generateInterviewQuestions(Resume resume, Position position, int count) {
-        List<Question> questions = new ArrayList<>();
+        try {
+            // 요청 바디 구성
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("resume", resume.getContent());
+            requestBody.put("position", position.getName());
+            requestBody.put("question_count", count);
+    
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + apiKey);  // 필요 없으면 생략 가능
+    
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
+    
+            // POST 요청 및 응답 받기
+            ResponseEntity<Map<String, Object>> responseEntity = restTemplate.exchange(
+                apiUrl + "/interview/questions",
+                HttpMethod.POST,
+                requestEntity,
+                new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+    
+            // 응답 처리
+            Map<String, Object> responseBody = responseEntity.getBody();
+            System.out.println("✅ 전체 응답 본문: " + responseBody);
+            if (responseBody == null || !responseBody.containsKey("questions")) {
+                throw new RuntimeException("ML 응답에 'questions' 필드가 없습니다.");
+            }
+            Object rawQuestions = responseBody.get("questions");
 
-        // If we're generating from AI, we'd call the API here
-        // For demo purposes, let's generate some sample questions
+            System.out.println("✅ rawQuestions 클래스 타입: " + rawQuestions.getClass());
+            System.out.println("✅ rawQuestions 내용: " + rawQuestions.toString());
 
-        Random random = new Random();
-
-        for (int i = 0; i < count; i++) {
-            QuestionType questionType;
-            String category;
-            String content;
-
-            // Determine question type
-            int typeRand = random.nextInt(4);
-            switch (typeRand) {
-                case 0:
-                    questionType = QuestionType.TECHNICAL;
-                    category = TECH_CATEGORIES.get(random.nextInt(TECH_CATEGORIES.size()));
-                    content = generateTechnicalQuestion(category);
-                    break;
-                case 1:
-                    questionType = QuestionType.PERSONALITY;
-                    category = NON_TECH_CATEGORIES.get(random.nextInt(NON_TECH_CATEGORIES.size()));
-                    content = generatePersonalityQuestion(category);
-                    break;
-                case 2:
-                    questionType = QuestionType.PROJECT;
-                    category = "Project Experience";
-                    content = generateProjectQuestion(resume);
-                    break;
-                default:
-                    questionType = QuestionType.SITUATION;
-                    category = "Situational";
-                    content = generateSituationalQuestion();
-                    break;
+            if (!(rawQuestions instanceof List)) {
+                throw new RuntimeException("ML 응답의 questions 형식이 잘못되었습니다.");
+            }
+            
+            List<?> rawList = (List<?>) rawQuestions;
+            
+            if (rawList.isEmpty()) {
+                throw new RuntimeException("면접 질문 생성 실패: 질문이 생성되지 않았습니다.");
             }
 
-            Question question = Question.builder()
-                    .content(content)
-                    .type(questionType)
-                    .category(category)
-                    .difficultyLevel(random.nextInt(3) + 1) // 1-3 difficulty
-                    .sequence(i + 1)
-                    .build();
+            if (rawList.size() < count) {
+                log.warn("요청된 질문 수({})보다 적게 생성됨: 실제 생성 수 = {}", count, rawList.size());
+            }
+            
+            List<Question> result = new ArrayList<>();
 
-            questions.add(question);
+            int sequence = 1;
+            for (Object obj : rawList) {
+                try {
+                    Map<String, Object> q = (Map<String, Object>) obj;
+                    System.out.println("✅ 처리 중인 질문 객체: " + q);
+
+                    Object contentObj = q.get("content");
+                    if (contentObj == null || !(contentObj instanceof String) || ((String) contentObj).trim().isEmpty()) {
+                        log.warn("질문 content 누락 또는 비어 있음: {}", q);
+                        continue;
+                    }
+                    String content = ((String) contentObj).trim();
+
+                    String typeStr = (String) q.get("type");
+                    String category = (String) q.getOrDefault("category", "General");
+                    Object levelObj = q.get("difficultyLevel");
+
+                    QuestionType type = QuestionType.TECHNICAL;
+                    if (typeStr != null) {
+                        try {
+                            type = QuestionType.valueOf(typeStr);
+                        } catch (IllegalArgumentException e) {
+                            log.warn("알 수 없는 type 값 '{}', 기본값 TECHNICAL 사용", typeStr);
+                        }
+                    }
+
+                    int difficultyLevel = 1;
+                    if (levelObj instanceof Number) {
+                        difficultyLevel = ((Number) levelObj).intValue();
+                    } else if (levelObj != null) {
+                        try {
+                            difficultyLevel = Integer.parseInt(levelObj.toString());
+                        } catch (NumberFormatException e) {
+                            log.warn("difficultyLevel 파싱 실패: {}, 기본값 1 사용", levelObj);
+                        }
+                    }
+
+                    Question question = Question.builder()
+                        .content(content)
+                        .type(type)
+                        .category(category)
+                        .difficultyLevel(difficultyLevel)
+                        .sequence(sequence++)
+                        .build();
+                    result.add(question);
+                } catch (Exception innerEx) {
+                    log.warn("질문 변환 실패: {}, 원인: {}", obj, innerEx.getMessage());
+                }
+            }
+
+            if (result == null || result.isEmpty()) {
+                log.error("면접 질문 생성 실패: GPT 응답은 있었지만 content 필드가 비어 있거나 누락된 항목뿐이었음.");
+                throw new RuntimeException("면접 질문 생성 실패: 유효한 질문이 없습니다. (GPT content 필드 없음 또는 공백)");
+            }
+            return result;
+        } catch (Exception e) {
+            log.error("ML 서버 질문 생성 실패: {}", e.getMessage(), e);
+            throw e;
         }
-
-        return questions;
     }
+    
+    
 
     private String generateTechnicalQuestion(String category) {
         Map<String, List<String>> technicalQuestions = new HashMap<>();

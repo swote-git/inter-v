@@ -11,6 +11,7 @@ build/
 .factorypath
 .project
 .settings
+.config
 .springBeans
 .sts4-cache
 bin/
@@ -35,3 +36,12 @@ out/
 
 ### VS Code ###
 .vscode/
+.env
+
+
+# Terraform 민감 정보
+infrastructure/terraform/.terraform/
+infrastructure/terraform/terraform.tfstate*
+infrastructure/terraform/terraform.tfvars  # ← 이것이 핵심!
+infrastructure/terraform/*.tfplan
+*.pem

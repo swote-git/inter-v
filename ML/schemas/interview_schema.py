@@ -1,34 +1,46 @@
 from pydantic import BaseModel, Field
 from typing import List
 
-class InterviewRequest(BaseModel):
-    resume: str = Field(..., description="사용자의 이력서 내용")
-    cover_letter: str = Field(..., description="사용자의 자기소개서 내용")
-    job_description: str = Field(..., description="지원하는 회사의 채용 공고 내용")
-    num_questions: int = Field(3, description="생성할 질문 개수")
+# ===============================
+# 질문 생성 요청/응답 모델
+# ===============================
+
+class InterviewQuestionRequest(BaseModel):
+    resume: str               # 사용자의 이력서 텍스트
+    position: str             # 지원 직무명
+    questionCount: int = Field(..., alias="question_count")  # 생성할 질문 개수 (Spring 연동에 맞춤)
 
     class Config:
-        schema_extra = {
-            "example": {
-                "resume": "저는 백엔드 개발자로서 Spring과 MySQL 기반의 쇼핑몰 프로젝트를 수행했습니다. JWT 인증과 Redis를 활용한 토큰 관리 경험도 있습니다.",
-                "cover_letter": "문제 해결에 집중하는 성격이며 팀 프로젝트 경험이 풍부합니다. 책임감 있는 자세로 개발에 임하고 있습니다.",
-                "job_description": "Spring 기반 백엔드 서버 개발자 모집. REST API 개발, MySQL 사용 경험 필수. 협업 역량 중요.",
-                "num_questions": 3
-            }
-        }
+        allow_population_by_field_name = True
 
-class InterviewResponse(BaseModel):
-    questions: List[str]
+class InterviewQuestionItem(BaseModel):
+    content: str              # 생성된 질문 본문
+    type: str                 # 질문 유형: TECHNICAL / PERSONALITY / PROJECT / SITUATION
+    category: str             # 질문 카테고리 (예: Java, Teamwork 등)
+    difficultyLevel: int      # 난이도 (1~3)
+
+class InterviewQuestionResponse(BaseModel):
+    questions: List[InterviewQuestionItem]
+
+
+# ===============================
+# 피드백 요청/응답 모델
+# ===============================
+
+class InterviewFeedbackRequest(BaseModel):
+    question: str             # 질문 텍스트
+    answer: str               # 사용자의 답변 텍스트
+    position: str             # 지원 직무명 (컨텍스트 정보)
+
+class InterviewFeedbackResponse(BaseModel):
+    feedback: str             # 생성된 피드백 문자열
 
 class SimulationRequest(BaseModel):
-    resume: str = Field(..., description="이력서")
-    cover_letter: str = Field(..., description="자기소개서")
-    job_description: str = Field(..., description="채용 공고")
-    user_answer: str = Field(..., description="사용자의 답변")
-    num_questions: int = Field(3, description="생성할 질문 수")
+    resume: str
+    cover_letter: str
+    job_description: str
+    temperature: float = 0.7
+    num_questions: int = 3
 
 class SimulationResponse(BaseModel):
-    generated_questions: List[str]
-    selected_question: str
-    user_answer: str
-    evaluation_result: dict
+    questions: List[str]

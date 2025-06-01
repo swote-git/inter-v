@@ -25,6 +25,8 @@ public class Position extends BaseEntity {
     @JoinColumn(name = "company_id")
     private Company company;
 
+    private String name;
+
     private String title;
 
     @Column(columnDefinition = "TEXT")

@@ -1,14 +1,7 @@
-[이력서]
+이력서 내용:
 {resume}
 
-[자기소개서]
-{cover_letter}
+지원 포지션:
+{position}
 
-[채용 공고]
-{job_description}
-
-위 내용을 참고해서 다음과 같은 형식으로 질문을 생성해줘:
-
-1. ...
-2. ...
-...
+면접 질문 {question_count}개 생성
