@@ -1,36 +1,151 @@
 from bert_score import BERTScorer
 import pandas as pd
 import torch
+import os
+
+# 파일 경로 설정
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, 'data')
+
+print(f"현재 작업 디렉토리: {os.getcwd()}")
+print(f"BASE_DIR: {BASE_DIR}")
+print(f"DATA_DIR: {DATA_DIR}")
+
+# CSV 파일에서 질문 목록 읽어오는 함수
+def load_questions_from_csv(csv_file):
+    try:
+        file_path = os.path.join(DATA_DIR, csv_file)
+        print(f"CSV 파일 읽기 시도: {file_path}")
+        
+        if not os.path.exists(file_path):
+            print(f"파일을 찾을 수 없음: {file_path}")
+            return []
+            
+        # CSV 파일 읽기
+        try:
+            df = pd.read_csv(file_path, encoding='utf-8', quotechar='"', escapechar='\\')
+        except Exception as e:
+            print(f"{csv_file} - UTF-8 인코딩 실패 ({e}), CP949 시도")
+            try:
+                df = pd.read_csv(file_path, encoding='cp949', quotechar='"', escapechar='\\')
+            except Exception as e:
+                print(f"{csv_file} - CSV 읽기 실패: {e}")
+                return []
+        
+        print(f"CSV 파일 읽기 성공: {csv_file}")
+        print(f"CSV 파일 컬럼: {df.columns.tolist()}")
+        
+        # '질문' 컬럼 찾기
+        question_col = None
+        for col in ['질문', 'question', 'Question']:
+            if col in df.columns:
+                question_col = col
+                break
+                
+        if question_col is None:
+            print(f"경고: {csv_file}에서 질문 컬럼을 찾을 수 없습니다.")
+            return []
+            
+        # NaN 값 처리 및 문자열 변환
+        questions = df[question_col].fillna('').astype(str).tolist()
+        questions = [q for q in questions if q and q != 'nan']
+        
+        print(f"질문 개수: {len(questions)}")
+        if questions:
+            print(f"첫 번째 질문 샘플: {questions[0][:50]}...")
+            
+        return questions
+    except Exception as e:
+        print(f"CSV 파일 '{csv_file}' 읽기 오류: {e}")
+        return []
+
+# CSV 파일에서 고객 데이터 읽어오는 함수
+def load_customer_data_from_csv(csv_file):
+    try:
+        file_path = os.path.join(DATA_DIR, csv_file)
+        print(f"고객 데이터 CSV 파일 읽기 시도: {file_path}")
+        
+        if not os.path.exists(file_path):
+            print(f"파일을 찾을 수 없음: {file_path}")
+            return {
+                'introduce': "",
+                'resume': "",
+                'project': "",
+                'company': "",
+                'all': ""
+            }
+        
+        # 간단한 방식으로 CSV 파일 읽기
+        df = pd.read_csv(file_path, encoding='utf-8')
+        print(f"CSV 파일 읽기 성공: {file_path}")
+        print(f"컬럼: {df.columns.tolist()}")
+        
+        # 데이터 매핑
+        data = {
+            'introduce': df['자기소개서'].iloc[0] if '자기소개서' in df.columns else "",
+            'resume': df['이력서'].iloc[0] if '이력서' in df.columns else "",
+            'project': df['프로젝트'].iloc[0] if '프로젝트' in df.columns else "",
+            'company': df['회사공고'].iloc[0] if '회사공고' in df.columns else ""
+        }
+        
+        # 각 필드 길이 출력 (디버깅용)
+        for key, value in data.items():
+            value_str = str(value)
+            print(f"'{key}' 데이터 길이: {len(value_str)} 문자")
+            print(f"'{key}' 데이터 샘플: {value_str[:100]}..." if len(value_str) > 100 else f"'{key}' 데이터: {value_str}")
+        
+        # 전체 데이터 합치기
+        data['all'] = ' '.join(str(value) for value in data.values())
+        
+        return data
+    except Exception as e:
+        print(f"CSV 파일 '{csv_file}' 읽기 오류: {e}")
+        return {
+            'introduce': "",
+            'resume': "",
+            'project': "",
+            'company': "",
+            'all': ""
+        }
 
 # --- 1. 비교 대상 정의 ---
 
-# 생성 질문 목록록
-question_interv = "InterV 서비스에서 생성된 면접 예상 질문입니다. 귀하의 가장 큰 성과는 무엇이었으며, 그 과정에서 어떤 어려움을 극복했는지 설명해주십시오."
-question_saramin = "사람인 사이트의 채용 공고를 기반으로 생성한 면접 질문입니다. 우리 회사의 경쟁사 대비 강점은 무엇이라고 생각하며, 입사 후 어떤 기여를 할 수 있습니까?"
-question_wanted = "원티드 플랫폼의 기업 정보를 바탕으로 만든 면접 질문입니다. 지원하신 직무에서 가장 중요하다고 생각하는 역량 세 가지와 그 이유를 말씀해주세요."
+# CSV 파일에서 질문 목록 로드
+interv_questions = load_questions_from_csv('interv_questions.csv')
+wanted_questions = load_questions_from_csv('wanted_questions.csv')
 
+# 질문 목록을 문자열로 변환
+question_interv = ' '.join(interv_questions)
+question_wanted = ' '.join(wanted_questions)
+
+# 사람인 관련 코드 제거하고 두 가지 질문만 유지
 candidate_reports_map = {
-    "Generated_Interview_Questions": question_interv,
-    "Generated_Saramin_Questions": question_saramin,
+    "Generated_InterV_Questions": question_interv,
     "Generated_Wanted_Questions": question_wanted
 }
 
-# 고객 데이터
-data_introduce = "저는 창의적인 문제 해결 능력을 가진 개발자입니다. 새로운 기술을 배우는 것을 좋아하며, 팀 프로젝트에서 협업을 중요하게 생각합니다. 저의 주요 기술 스택은 파이썬과 자바스크립트입니다."
-data_resume = "경력사항: ABC회사 선임 개발자 (3년), XYZ스타트업 주니어 개발자 (2년). 학력: OO대학교 컴퓨터공학과 졸업. 보유 기술: Python, Java, JavaScript, React, SQL. 프로젝트 경험: 고객 관리 시스템 개발, 빅데이터 분석 플랫폼 구축."
-data_project = "프로젝트명: AI 기반 추천 시스템 개발. 역할: 백엔드 개발 및 데이터 분석. 사용 기술: Python, TensorFlow, Flask. 주요 성과: 추천 정확도 15% 향상. 고객 관리 시스템 프로젝트에서는 Spring Boot와 JPA를 사용했습니다."
-data_company = "우리 회사는 AI 기술을 선도하는 혁신적인 기업입니다. 데이터 분석가와 소프트웨어 엔지니어를 모집 중입니다. 주요 기술 스택은 Python, AWS, Spark 입니다. 창의적이고 도전적인 인재를 환영합니다."
-data_all = data_introduce + "\n" + data_resume + "\n" + data_project + "\n" + data_company
+# 고객 데이터 CSV에서 로드
+customer_data = load_customer_data_from_csv('customer_data.csv')
+
+# Reference Reports (고객 데이터)
+data_introduce = customer_data['introduce']
+data_resume = customer_data['resume']
+data_project = customer_data['project']
+data_company = customer_data['company']
+data_all = customer_data['all']
 
 reference_reports_list = [data_introduce, data_resume, data_project, data_company, data_all]
 reference_names_list = ["자기소개서", "이력서", "프로젝트 내역", "회사 공고", "전체 데이터"]
 
 
 # --- 2. BERTScore 계산 ---
-model_name = "klue/bert-base"
+# 다국어 BERT 모델 사용 (기존 KLUE-BERT 대신)
+model_name = "bert-base-multilingual-cased"
 bert_score_num_layers = 12
 
 print(f"BERTScore 계산 시작 (모델: {model_name}, 사용할 BERT 레이어 인덱스: {bert_score_num_layers})...")
+print("다국어 BERT 모델을 사용하여 한글과 영어가 혼합된 텍스트에 대한 성능을 향상시킵니다.")
+
 if torch.cuda.is_available():
     device = 'cuda'
     print(f"GPU 사용 가능 ({torch.cuda.get_device_name(0)}). BERTScore 계산이 더 빠를 수 있습니다.")
@@ -39,7 +154,6 @@ else:
     print("GPU 사용 불가능. CPU로 계산합니다 (다소 느릴 수 있음).")
 
 scorer = BERTScorer(model_type=model_name,
-                    lang="ko",
                     num_layers=bert_score_num_layers,
                     idf=False,
                     device=device,
@@ -78,13 +192,13 @@ for candidate_name, candidate_text in candidate_reports_map.items():
 results_df = pd.DataFrame(all_results_data)
 
 print("\n\n" + "="*70)
-print("--- 최종 BERTScore 평가 결과 (DataFrame) ---")
+print("--- 최종 BERTScore 평가 결과 (다국어 BERT) ---")
 print("="*70)
 if not results_df.empty:
     print(results_df.to_string())
 
     print("\n\n" + "="*70)
-    print("--- Candidate Report별 평균 BERTScore ---")
+    print("--- Candidate Report별 평균 BERTScore (다국어 BERT) ---")
     print("="*70)
     avg_scores_df = results_df.groupby("Candidate Report")[["BERT_Precision", "BERT_Recall", "BERT_F1"]].mean()
     print(avg_scores_df.to_string())
@@ -93,7 +207,11 @@ else:
 print("="*70)
 
 # --- 4. CSV 파일로 저장 ---
-csv_filename = "bertscore_evaluation.csv"
+# 결과 디렉토리 생성
+result_dir = os.path.join(os.getcwd(), 'result')
+os.makedirs(result_dir, exist_ok=True)
+
+csv_filename = os.path.join(result_dir, "bertscore_evaluation.csv")
 try:
     results_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
     print(f"\n결과가 '{csv_filename}' 파일로 성공적으로 저장되었습니다.")
