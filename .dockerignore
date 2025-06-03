@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# Build outputs (다른 경로의 빌드 파일들 제외)
+**/build/
+**/target/
+!inter-v/BE/inter-v/build/
+!inter-v/BE/inter-v/target/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Node modules (프론트엔드가 있는 경우)
+node_modules/
+
+# 기존 Docker 관련 파일들
+Dockerfile.backup
+README.md
+.env
+.env.*
+
+# AWS 관련 설정 파일들
+.aws/
+*.pem

@@ -1,0 +1,60 @@
+{
+  "family": "interv-task-ec2",
+  "networkMode": "bridge",
+  "requiresCompatibilities": ["EC2"],
+  "cpu": "512",
+  "memory": "900",
+  "executionRoleArn": "arn:aws:iam::034115074124:role/ecsTaskExecutionRole-interv",
+  "taskRoleArn": "arn:aws:iam::034115074124:role/ecsTaskRole-interv",
+  "containerDefinitions": [
+    {
+      "name": "interv-container",
+      "image": "034115074124.dkr.ecr.ap-northeast-2.amazonaws.com/interv:latest",
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "hostPort": 0,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {"name": "SPRING_PROFILES_ACTIVE", "value": "prod"},
+        {"name": "DB_HOST", "value": "interv-db.cjygi4mssp23.ap-northeast-2.rds.amazonaws.com"},
+        {"name": "DB_PORT", "value": "3306"},
+        {"name": "DB_NAME", "value": "interv"},
+        {"name": "AWS_REGION", "value": "ap-northeast-2"},
+        {"name": "S3_BUCKET_NAME", "value": "interv-storage-t8osm0s8"},
+        {"name": "COGNITO_REDIRECT_URI", "value": "https://interv.swote.dev/login/oauth2/code/cognito"},
+        {"name": "COGNITO_LOGOUT_REDIRECT_URI", "value": "https://interv.swote.dev/"},
+        {"name": "SERVER_PORT", "value": "8080"},
+        {"name": "JPA_DDL_AUTO", "value": "update"},
+        {"name": "SHOW_SQL", "value": "false"},
+        {"name": "FORMAT_SQL", "value": "false"}
+      ],
+      "secrets": [
+        {"name": "DB_USERNAME", "valueFrom": "arn:aws:ssm:ap-northeast-2:034115074124:parameter/interv/db/username"},
+        {"name": "DB_PASSWORD", "valueFrom": "arn:aws:ssm:ap-northeast-2:034115074124:parameter/interv/db/password"},
+        {"name": "COGNITO_USER_POOL_ID", "valueFrom": "arn:aws:ssm:ap-northeast-2:034115074124:parameter/interv/cognito/user-pool-id"},
+        {"name": "COGNITO_CLIENT_ID", "valueFrom": "arn:aws:ssm:ap-northeast-2:034115074124:parameter/interv/cognito/client-id"},
+        {"name": "COGNITO_CLIENT_SECRET", "valueFrom": "arn:aws:ssm:ap-northeast-2:034115074124:parameter/interv/cognito/client-secret"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/interv",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "startPeriod": 120
+      },
+      "essential": true,
+      "memoryReservation": 512
+    }
+  ]
+}
