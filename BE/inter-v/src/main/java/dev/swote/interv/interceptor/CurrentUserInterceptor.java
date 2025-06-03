@@ -17,14 +17,19 @@ public class CurrentUserInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        // AUTH_USER_ID 헤더로 간단한 사용자 식별 (Cognito 대체)
         final String authUserId = request.getHeader("AUTH_USER_ID");
         if (authUserId == null) return true;
 
-        User user = userRepository.findById(Integer.parseInt(authUserId)).orElse(null);
-        if (user == null) return true;
+        try {
+            User user = userRepository.findById(Integer.parseInt(authUserId)).orElse(null);
+            if (user == null) return true;
 
-        final CurrentUser currentUser = CurrentUser.from(user);
-        request.setAttribute("currentUser", currentUser);
+            final CurrentUser currentUser = CurrentUser.from(user);
+            request.setAttribute("currentUser", currentUser);
+        } catch (NumberFormatException e) {
+            log.warn("Invalid AUTH_USER_ID format: {}", authUserId);
+        }
 
         return HandlerInterceptor.super.preHandle(request, response, handler);
     }

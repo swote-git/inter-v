@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 
 @Component
-public class PasswordEncoder {
+public class CustomPasswordEncoder {
     private String pepper;
 
     private final Random random = new SecureRandom();

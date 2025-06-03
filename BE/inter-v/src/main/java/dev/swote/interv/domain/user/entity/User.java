@@ -8,7 +8,7 @@ import java.util.Set;
 import dev.swote.interv.domain.BaseEntity;
 import dev.swote.interv.domain.interview.entity.Question;
 import dev.swote.interv.domain.user.VO.RegisterVO;
-import dev.swote.interv.util.security.PasswordEncoder;
+import dev.swote.interv.util.security.CustomPasswordEncoder;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -56,7 +56,7 @@ public class User extends BaseEntity {
     )
     private Set<Question> favoritedQuestions = new HashSet<>();
 
-    public static User of(RegisterVO registerVO, PasswordEncoder encoder) throws NoSuchAlgorithmException {
+    public static User of(RegisterVO registerVO, CustomPasswordEncoder encoder) throws NoSuchAlgorithmException {
         final String salt = encoder.getNextSalt();
 
         return builder()
