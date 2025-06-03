@@ -4,7 +4,10 @@ import dev.swote.interv.domain.user.repository.UserRepository;
 import dev.swote.interv.interceptor.CurrentUserArgumentResolver;
 import dev.swote.interv.interceptor.CurrentUserInterceptor;
 import dev.swote.interv.interceptor.RequestInfoInterceptor;
+import dev.swote.interv.util.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -17,6 +20,7 @@ import java.util.List;
 public class WebMvcConfig implements WebMvcConfigurer {
 
     private final UserRepository userRepository;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
@@ -27,5 +31,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new RequestInfoInterceptor());
         registry.addInterceptor(new CurrentUserInterceptor(userRepository));
+    }
+
+    @Bean
+    public FilterRegistrationBean<JwtAuthenticationFilter> jwtAuthenticationFilterRegistration() {
+        FilterRegistrationBean<JwtAuthenticationFilter> registration = new FilterRegistrationBean<>();
+        registration.setFilter(jwtAuthenticationFilter);
+        registration.addUrlPatterns("/api/*");
+        registration.setOrder(1);
+        return registration;
     }
 }

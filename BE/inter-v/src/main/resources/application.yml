@@ -1,4 +1,4 @@
-# application.yml - AWS 배포용 통합 설정
+# application.yml - 기본 인증 방식
 spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
@@ -24,24 +24,6 @@ spring:
       jpa:
         repositories:
           enabled: true
-  security:
-    oauth2:
-      client:
-        registration:
-          cognito:
-            client-id: ${COGNITO_CLIENT_ID:dummy-client-id}
-            client-secret: ${COGNITO_CLIENT_SECRET:dummy-client-secret}
-            scope: openid, email, phone
-            redirect-uri: ${COGNITO_REDIRECT_URI:https://interv.swote.dev/login/oauth2/code/cognito}
-            client-name: Inter-V Cognito
-            authorization-grant-type: authorization_code
-        provider:
-          cognito:
-            issuer-uri: https://cognito-idp.${AWS_REGION:ap-northeast-2}.amazonaws.com/${COGNITO_USER_POOL_ID:dummy-pool-id}
-            user-name-attribute: email
-      resourceserver:
-        jwt:
-          issuer-uri: https://cognito-idp.${AWS_REGION:ap-northeast-2}.amazonaws.com/${COGNITO_USER_POOL_ID:dummy-pool-id}
   jackson:
     serialization:
       indent_output: true
@@ -52,18 +34,17 @@ spring:
       max-file-size: 10MB
       max-request-size: 10MB
 
-# AWS 서비스 설정 (IAM Role 기반 - AccessKey/SecretKey 제거)
+# JWT 설정
+jwt:
+  secret: ${JWT_SECRET:mySecretKeyForJwtTokenGenerationThatNeedsToBeAtLeast256BitsLongForHS256Algorithm}
+  access-token-validity: ${JWT_ACCESS_TOKEN_VALIDITY:3600000}  # 1시간 (밀리초)
+  refresh-token-validity: ${JWT_REFRESH_TOKEN_VALIDITY:604800000}  # 7일 (밀리초)
+
+# AWS 서비스 설정 (S3만 사용)
 aws:
   region: ${AWS_REGION:ap-northeast-2}
-  # credentials 섹션을 완전히 제거 - EC2에서 IAM Role 사용
   s3:
     bucket: ${S3_BUCKET_NAME:interv-storage}
-  cognito:
-    region: ${AWS_REGION:ap-northeast-2}
-    user-pool-id: ${COGNITO_USER_POOL_ID:dummy-pool-id}
-    client-id: ${COGNITO_CLIENT_ID:dummy-client-id}
-    client-secret: ${COGNITO_CLIENT_SECRET:dummy-client-secret}
-    logout-redirect-uri: ${COGNITO_LOGOUT_REDIRECT_URI:https://interv.swote.dev/}
 
 # 서버 설정
 server:
@@ -118,28 +99,16 @@ spring:
       hibernate:
         show_sql: true
         format_sql: true
-  security:
-    oauth2:
-      client:
-        registration:
-          cognito:
-            client-id: local-dummy-client
-            client-secret: local-dummy-secret
-            scope: openid, email
-            redirect-uri: http://localhost:8080/login/oauth2/code/cognito
-        provider:
-          cognito:
-            issuer-uri: https://cognito-idp.ap-northeast-2.amazonaws.com/ap-northeast-2_dummy
+
+jwt:
+  secret: localSecretKeyForJwtTokenGenerationThatNeedsToBeAtLeast256BitsLongForHS256Algorithm
+  access-token-validity: 3600000
+  refresh-token-validity: 604800000
 
 aws:
   region: ap-northeast-2
-  # 로컬에서는 AWS 프로파일 또는 환경 변수 사용
   s3:
     bucket: local-test-bucket
-  cognito:
-    user-pool-id: local-dummy-pool
-    client-id: local-dummy-client
-    client-secret: local-dummy-secret
 
 logging:
   level:
@@ -177,15 +146,6 @@ spring:
   jackson:
     serialization:
       indent_output: false
-  security:
-    oauth2:
-      client:
-        registration:
-          cognito:
-            redirect-uri: https://interv.swote.dev/login/oauth2/code/cognito
-        provider:
-          cognito:
-            issuer-uri: https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}
 
 # 운영 환경 로깅
 logging:
