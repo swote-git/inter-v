@@ -1,371 +1,130 @@
-name: Deploy InterV Application
+name: Deploy to AWS ECS
 
 on:
   push:
-    branches: [ main ]
-    paths-ignore:
-      - 'README.md'
-      - 'docs/**'
+    branches: [ main, master ]
+    paths:
+      - 'BE/**'  # BE 폴더의 변경사항만 감지
+      - '.github/workflows/deploy.yml'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'BE/**'
 
 env:
   AWS_REGION: ap-northeast-2
-  APPLICATION_NAME: interv
+  ECR_REPOSITORY: interv
+  ECS_SERVICE: interv-service
+  ECS_CLUSTER: interv-cluster
+  ECS_TASK_DEFINITION: interv-task-ec2
 
 jobs:
-  deploy-infrastructure:
+  deploy:
+    name: Deploy to ECS
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
-      with:
-        terraform_version: ~1.6.0
-    
+
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
+      uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Initialize Terraform
-      run: |
-        cd infrastructure/
-        terraform init
-    
-    - name: Bulletproof Resource Import
-      env:
-        TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-        TF_VAR_key_pair_name: ${{ secrets.EC2_KEY_PAIR_NAME }}
-        TF_VAR_aws_region: ${{ env.AWS_REGION }}
-        TF_VAR_app_name: ${{ env.APPLICATION_NAME }}
-        TF_VAR_domain_name: "interv.swote.dev"
-      run: |
-        cd infrastructure/
-        
-        echo "🛡️ 강력한 리소스 Import 및 예외처리 시작..."
-        echo ""
-        
-        # Import 함수 정의 (실패해도 계속 진행)
-        bulletproof_import() {
-            local resource_name="$1"
-            local terraform_resource="$2"
-            local aws_resource_id="$3"
-            local check_command="$4"
-            
-            echo "🔍 $resource_name 처리 중..."
-            
-            # 이미 Terraform state에 있는지 확인
-            if terraform state show "$terraform_resource" >/dev/null 2>&1; then
-                echo "  ✅ 이미 state에 존재: $resource_name"
-                return 0
-            fi
-            
-            # AWS에 리소스가 존재하는지 확인
-            if eval "$check_command" >/dev/null 2>&1; then
-                echo "  📥 AWS에서 발견 - Import 시도: $aws_resource_id"
-                
-                if terraform import "$terraform_resource" "$aws_resource_id" 2>/dev/null; then
-                    echo "  ✅ Import 성공: $resource_name"
-                else
-                    echo "  ⚠️ Import 실패하지만 계속 진행: $resource_name"
-                fi
-            else
-                echo "  ℹ️ AWS에 없음 - 새로 생성될 예정: $resource_name"
-            fi
-            echo ""
-        }
-        
-        # 핵심 리소스들 Import
-        echo "🏗️ 핵심 인프라 리소스:"
-        
-        bulletproof_import "DB Subnet Group" \
-            "aws_db_subnet_group.main" \
-            "interv-db-subnet-group" \
-            "aws rds describe-db-subnet-groups --db-subnet-group-name interv-db-subnet-group"
-        
-        bulletproof_import "IAM Role" \
-            "aws_iam_role.ec2_role" \
-            "interv-ec2-role" \
-            "aws iam get-role --role-name interv-ec2-role"
-        
-        bulletproof_import "IAM Role Policy" \
-            "aws_iam_role_policy.ec2_policy" \
-            "interv-ec2-role:interv-ec2-policy" \
-            "aws iam get-role-policy --role-name interv-ec2-role --policy-name interv-ec2-policy"
-        
-        bulletproof_import "IAM Instance Profile" \
-            "aws_iam_instance_profile.ec2_profile" \
-            "interv-ec2-profile" \
-            "aws iam get-instance-profile --instance-profile-name interv-ec2-profile"
-        
-        # Load Balancer 리소스들
-        echo "⚖️ Load Balancer 리소스:"
-        
-        ALB_ARN=$(aws elbv2 describe-load-balancers --names interv-alb --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null || echo "None")
-        if [ "$ALB_ARN" != "None" ] && [ "$ALB_ARN" != "null" ]; then
-            bulletproof_import "Application Load Balancer" \
-                "aws_lb.main" \
-                "$ALB_ARN" \
-                "aws elbv2 describe-load-balancers --load-balancer-arns $ALB_ARN"
-        fi
-        
-        TG_ARN=$(aws elbv2 describe-target-groups --names interv-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "None")
-        if [ "$TG_ARN" != "None" ] && [ "$TG_ARN" != "null" ]; then
-            bulletproof_import "Target Group" \
-                "aws_lb_target_group.app" \
-                "$TG_ARN" \
-                "aws elbv2 describe-target-groups --target-group-arns $TG_ARN"
-        fi
-        
-        # Auto Scaling 리소스들
-        echo "🔄 Auto Scaling 리소스:"
-        
-        bulletproof_import "Auto Scaling Group" \
-            "aws_autoscaling_group.app" \
-            "interv-asg" \
-            "aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names interv-asg"
-        
-        LT_ID=$(aws ec2 describe-launch-templates --launch-template-names interv-lt --query 'LaunchTemplates[0].LaunchTemplateId' --output text 2>/dev/null || echo "None")
-        if [ "$LT_ID" != "None" ] && [ "$LT_ID" != "null" ]; then
-            bulletproof_import "Launch Template" \
-                "aws_launch_template.app" \
-                "$LT_ID" \
-                "aws ec2 describe-launch-templates --launch-template-ids $LT_ID"
-        fi
-        
-        # 기타 리소스들
-        echo "📦 기타 리소스:"
-        
-        bulletproof_import "RDS Instance" \
-            "aws_db_instance.main" \
-            "interv-db" \
-            "aws rds describe-db-instances --db-instance-identifier interv-db"
-        
-        # S3 Bucket
-        S3_BUCKET=$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'interv-storage-')].Name" --output text 2>/dev/null || echo "")
-        if [ -n "$S3_BUCKET" ] && [ "$S3_BUCKET" != "None" ]; then
-            bulletproof_import "S3 Bucket" \
-                "aws_s3_bucket.app_storage" \
-                "$S3_BUCKET" \
-                "aws s3api head-bucket --bucket $S3_BUCKET"
-                
-            bulletproof_import "S3 Bucket Versioning" \
-                "aws_s3_bucket_versioning.app_storage" \
-                "$S3_BUCKET" \
-                "aws s3api get-bucket-versioning --bucket $S3_BUCKET"
-        fi
-        
-        # Route53 특별 처리
-        echo "🌍 Route53 레코드:"
-        HOSTED_ZONE_ID=$(aws route53 list-hosted-zones --query "HostedZones[?Name=='swote.dev.'].Id" --output text | cut -d'/' -f3 2>/dev/null || echo "")
-        if [ -n "$HOSTED_ZONE_ID" ]; then
-            EXISTING_RECORD=$(aws route53 list-resource-record-sets \
-                --hosted-zone-id "$HOSTED_ZONE_ID" \
-                --query "ResourceRecordSets[?Name=='interv.swote.dev.' && Type=='A']" \
-                --output json 2>/dev/null)
-            
-            if [ "$EXISTING_RECORD" != "[]" ] && [ -n "$EXISTING_RECORD" ]; then
-                IMPORT_ID="${HOSTED_ZONE_ID}_interv.swote.dev_A"
-                bulletproof_import "Route53 A Record" \
-                    "aws_route53_record.main" \
-                    "$IMPORT_ID" \
-                    "echo true"
-            fi
-        fi
-        
-        echo "✅ 강력한 Import 과정 완료!"
-        echo ""
-    
-    - name: Smart Terraform Deployment
-      env:
-        TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-        TF_VAR_key_pair_name: ${{ secrets.EC2_KEY_PAIR_NAME }}
-        TF_VAR_aws_region: ${{ env.AWS_REGION }}
-        TF_VAR_app_name: ${{ env.APPLICATION_NAME }}
-        TF_VAR_domain_name: "interv.swote.dev"
-      run: |
-        cd infrastructure/
-        
-        echo "🧠 스마트 Terraform 배포 시작..."
-        
-        # Plan 실행 (여러 번 시도)
-        PLAN_SUCCESS=false
-        for attempt in 1 2 3; do
-            echo "📋 Plan 시도 $attempt/3..."
-            
-            if terraform plan -out=tfplan 2>/dev/null; then
-                echo "✅ Plan 성공!"
-                PLAN_SUCCESS=true
-                break
-            else
-                echo "⚠️ Plan 실패 - $attempt번째 시도"
-                
-                if [ $attempt -lt 3 ]; then
-                    echo "🔄 30초 대기 후 재시도..."
-                    sleep 30
-                    
-                    # Terraform 상태 새로고침
-                    terraform refresh -auto-approve 2>/dev/null || true
-                fi
-            fi
-        done
-        
-        if [ "$PLAN_SUCCESS" = false ]; then
-            echo "❌ 3번의 Plan 시도 모두 실패"
-            echo "🔍 Plan 상세 로그:"
-            terraform plan 2>&1 || true
-            exit 1
-        fi
-        
-        # Apply 실행
-        echo ""
-        echo "🚀 Infrastructure 배포 실행..."
-        
-        APPLY_SUCCESS=false
-        for attempt in 1 2; do
-            echo "🔧 Apply 시도 $attempt/2..."
-            
-            if terraform apply tfplan; then
-                echo "✅ Apply 성공!"
-                APPLY_SUCCESS=true
-                break
-            else
-                echo "⚠️ Apply 실패 - $attempt번째 시도"
-                
-                if [ $attempt -lt 2 ]; then
-                    echo "🔄 새로운 Plan 생성 후 재시도..."
-                    terraform plan -out=tfplan
-                fi
-            fi
-        done
-        
-        if [ "$APPLY_SUCCESS" = false ]; then
-            echo "❌ Apply 실패"
-            exit 1
-        fi
-        
-        # Output 수집
-        echo "📊 Terraform Outputs 수집..."
-        terraform output -json > terraform-outputs.json || true
-        
-        S3_BUCKET=$(terraform output -raw s3_bucket_name 2>/dev/null || echo "")
-        if [ -n "$S3_BUCKET" ]; then
-            echo "S3_BUCKET_NAME=$S3_BUCKET" >> $GITHUB_ENV
-            echo "🪣 S3 Bucket: $S3_BUCKET"
-        fi
-        
-        echo ""
-        echo "🎉 Infrastructure 배포 완료!"
-    
-    outputs:
-      s3_bucket_name: ${{ env.S3_BUCKET_NAME }}
 
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    needs: [deploy-infrastructure]
-    if: always() && !failure()
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
     - name: Set up JDK 17
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
         java-version: '17'
-        distribution: 'corretto'
-    
-    - name: Cache Maven dependencies
+        distribution: 'temurin'
+
+    - name: Cache Gradle packages
       uses: actions/cache@v3
       with:
-        path: ~/.m2
-        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-        restore-keys: ${{ runner.os }}-m2
-    
-    - name: Build application
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x BE/inter-v/gradlew
+      
+    - name: Test with Gradle
       run: |
-        echo "📦 Spring Boot 애플리케이션 빌드..."
-        
-        if [ -d "inter-v" ]; then
-          cd inter-v
-          echo "Building in inter-v directory"
-        elif [ -d "BE/inter-v" ]; then
-          cd BE/inter-v
-          echo "Building in BE/inter-v directory"
-        else
-          echo "❌ Application directory not found!"
-          exit 1
-        fi
-        
-        mvn clean package -DskipTests
-        
-        JAR_FILE=$(find target -name "*.jar" | head -1)
-        if [ -n "$JAR_FILE" ]; then
-          echo "✅ 빌드 성공: $JAR_FILE"
-        else
-          echo "❌ 빌드 실패: JAR 파일을 찾을 수 없습니다"
-          exit 1
-        fi
-    
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
+        cd BE/inter-v
+        ./gradlew test --no-daemon
+      
+    - name: Build with Gradle
+      run: |
+        cd BE/inter-v
+        ./gradlew clean build -x test --no-daemon
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Build a docker container and push it to ECR
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    - name: Download current task definition
+      run: |
+        aws ecs describe-task-definition \
+          --task-definition ${{ env.ECS_TASK_DEFINITION }} \
+          --query taskDefinition > task-definition.json
+
+    - name: Fill in the new image ID in the Amazon ECS task definition
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Deploy Application
+        task-definition: task-definition.json
+        container-name: interv-container
+        image: ${{ steps.build-image.outputs.image }}
+
+    - name: Deploy Amazon ECS task definition
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        service: ${{ env.ECS_SERVICE }}
+        cluster: ${{ env.ECS_CLUSTER }}
+        wait-for-service-stability: true
+
+    - name: Verify deployment
       run: |
-        echo "🚀 애플리케이션 배포..."
+        echo "🎉 Deployment completed successfully!"
+        echo "Application URL: https://interv.swote.dev"
+        echo "Health Check: https://interv.swote.dev/actuator/health"
         
-        cd infrastructure/
-        terraform init
-        S3_BUCKET=$(terraform output -raw s3_bucket_name 2>/dev/null || echo "")
+        # Wait a bit for the service to be fully updated
+        sleep 30
         
-        if [ -z "$S3_BUCKET" ]; then
-          echo "❌ S3 bucket name not found!"
-          exit 1
-        fi
-        
-        # JAR 파일 업로드
-        if [ -d "../inter-v" ]; then
-          JAR_PATH="../inter-v/target"
-        elif [ -d "../BE/inter-v" ]; then
-          JAR_PATH="../BE/inter-v/target"
+        # Check service status
+        aws ecs describe-services \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services ${{ env.ECS_SERVICE }} \
+          --query 'services[0].[serviceName,status,runningCount,pendingCount,desiredCount]' \
+          --output table
+
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ ${{ job.status }} == 'success' ]; then
+          echo "✅ Deployment successful! 🚀"
+          echo "Access your application at: https://interv.swote.dev"
         else
-          JAR_PATH="../target"
-        fi
-        
-        JAR_FILE=$(find $JAR_PATH -name "*.jar" | head -1)
-        
-        if [ -n "$JAR_FILE" ]; then
-          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-          
-          aws s3 cp "$JAR_FILE" "s3://$S3_BUCKET/releases/$TIMESTAMP/$APPLICATION_NAME.jar"
-          aws s3 cp "$JAR_FILE" "s3://$S3_BUCKET/releases/latest/$APPLICATION_NAME.jar"
-          
-          echo "✅ JAR 업로드 성공"
-          
-          # Auto Scaling Group 인스턴스 갱신
-          if aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names interv-asg >/dev/null 2>&1; then
-            echo "🔄 인스턴스 갱신..."
-            aws autoscaling start-instance-refresh \
-              --auto-scaling-group-name interv-asg \
-              --preferences MinHealthyPercentage=50,InstanceWarmup=300 \
-              --query 'InstanceRefreshId' --output text
-            echo "✅ 인스턴스 갱신 시작됨"
-          fi
-          
-          echo ""
-          echo "🎉 배포 완료!"
-          echo "🌐 Application: https://interv.swote.dev"
-          echo "🏥 Health Check: https://interv.swote.dev/actuator/health"
-          
-        else
-          echo "❌ JAR 파일을 찾을 수 없습니다"
-          exit 1
+          echo "❌ Deployment failed! 😞"
+          echo "Check the logs above for error details."
         fi
