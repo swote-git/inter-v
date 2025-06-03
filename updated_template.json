@@ -1,0 +1,23 @@
+{
+  "IamInstanceProfile": {
+    "Name": "interv-ec2-profile"
+  },
+  "ImageId": "ami-0bb60994bcb22cc2c",
+  "InstanceType": "t3.micro",
+  "KeyName": "interv-keypair",
+  "UserData": "IyEvYmluL2Jhc2gKCiMg66Gc6re4IO2MjOydvCDshKTsoJUKZXhlYyA+ID4odGVlIC92YXIvbG9nL3VzZXItZGF0YS5sb2cpIDI+JjEKZWNobyAiVXNlckRhdGEg7Iqk7YGs66a97Yq4IOyLnOyekTogJChkYXRlKSIKCiMgRUNTIO2BtOufrOyKpO2EsCDshKTsoJUKZWNobyAiRUNTX0NMVVNURVI9aW50ZXJ2LWNsdXN0ZXIiID4+IC9ldGMvZWNzL2Vjcy5jb25maWcKZWNobyAiRUNTX0VOQUJMRV9DT05UQUlORVJfTUVUQURBVEE9dHJ1ZSIgPj4gL2V0Yy9lY3MvZWNzLmNvbmZpZwplY2hvICJFQ1NfRU5BQkxFX1RBU0tfSUFNX1JPTEU9dHJ1ZSIgPj4gL2V0Yy9lY3MvZWNzLmNvbmZpZwplY2hvICJFQ1NfRU5BQkxFX1RBU0tfSUFNX1JPTEVfTkVUV09SS19IT1NUPXRydWUiID4+IC9ldGMvZWNzL2Vjcy5jb25maWcKCiMgRUNTIEFnZW50IOyerOyLnOyekQplY2hvICJFQ1MgQWdlbnQg7J6s7Iuc7J6RIOykkS4uLiIKc3lzdGVtY3RsIHJlc3RhcnQgZWNzCgojIEVDUyBBZ2VudCDsg4Htg5wg7ZmV7J24CmVjaG8gIkVDUyBBZ2VudCDsg4Htg5w6IgpzeXN0ZW1jdGwgc3RhdHVzIGVjcwoKZWNobyAiVXNlckRhdGEg7Iqk7YGs66a97Yq4IOyZhOujjDogJChkYXRlKSIK",
+  "TagSpecifications": [
+    {
+      "ResourceType": "instance",
+      "Tags": [
+        {
+          "Key": "Name",
+          "Value": "interv-instance"
+        }
+      ]
+    }
+  ],
+  "SecurityGroupIds": [
+    "sg-05a135fde3ea90b2d"
+  ]
+}

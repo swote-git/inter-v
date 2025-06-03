@@ -1,0 +1,17 @@
+{
+    "Comment": "Update interv.swote.dev to point to ALB using ALIAS record",
+    "Changes": [
+        {
+            "Action": "UPSERT",
+            "ResourceRecordSet": {
+                "Name": "interv.swote.dev",
+                "Type": "A",
+                "AliasTarget": {
+                    "DNSName": "interv-alb-730044858.ap-northeast-2.elb.amazonaws.com",
+                    "HostedZoneId": "ZWKZPGTI48KDX",
+                    "EvaluateTargetHealth": true
+                }
+            }
+        }
+    ]
+}
