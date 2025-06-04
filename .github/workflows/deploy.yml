@@ -1,130 +1,215 @@
-name: Deploy to AWS ECS
+# .github/workflows/deploy.yml
+name: Deploy Frontend and Backend
 
 on:
   push:
-    branches: [ main, master ]
-    paths:
-      - 'BE/**'  # BE 폴더의 변경사항만 감지
-      - '.github/workflows/deploy.yml'
+    branches: [ main ]
   pull_request:
-    branches: [ main, master ]
-    paths:
-      - 'BE/**'
-
-env:
-  AWS_REGION: ap-northeast-2
-  ECR_REPOSITORY: interv
-  ECS_SERVICE: interv-service
-  ECS_CLUSTER: interv-cluster
-  ECS_TASK_DEFINITION: interv-task-ec2
+    branches: [ main ]
 
 jobs:
-  deploy:
-    name: Deploy to ECS
+  # 변경된 파일 감지
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+      frontend: ${{ steps.changes.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            backend:
+              - 'BE/**'
+              - '**/*.java'
+              - '**/pom.xml'
+              - '**/build.gradle'
+              - '**/gradle.properties'
+            frontend:
+              - 'FE/**'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/package.json'
+              - '**/package-lock.json'
+
+  # Backend 배포
+  deploy-backend:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
-
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-
-    - name: Cache Gradle packages
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
-
-    - name: Grant execute permission for gradlew
-      run: chmod +x BE/inter-v/gradlew
+      - name: Checkout code
+        uses: actions/checkout@v4
       
-    - name: Test with Gradle
-      run: |
-        cd BE/inter-v
-        ./gradlew test --no-daemon
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
       
-    - name: Build with Gradle
-      run: |
-        cd BE/inter-v
-        ./gradlew clean build -x test --no-daemon
+      - name: Cache Maven dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+      
+      - name: Build with Maven
+        run: |
+          cd BE/inter-v
+          ./mvnw clean package -DskipTests
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+      
+      - name: Upload JAR to S3
+        run: |
+          cd BE/inter-v/target
+          aws s3 cp *.jar s3://${{ secrets.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar
+          
+      - name: Create release with timestamp
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          cd BE/inter-v/target
+          aws s3 cp *.jar s3://${{ secrets.S3_BACKEND_BUCKET }}/releases/$TIMESTAMP/inter-v.jar
+          
+      - name: Notify deployment complete
+        run: |
+          echo "✅ Backend JAR uploaded to S3!"
+          echo "📦 Latest: s3://${{ secrets.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar"
+          echo "🕐 Timestamped: s3://${{ secrets.S3_BACKEND_BUCKET }}/releases/$(date +%Y%m%d-%H%M%S)/inter-v.jar"
 
-    - name: Build, tag, and push image to Amazon ECR
-      id: build-image
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG: ${{ github.sha }}
-      run: |
-        # Build a docker container and push it to ECR
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+  # Frontend 배포
+  deploy-frontend:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: FE/package-lock.json
+      
+      - name: Install dependencies
+        run: |
+          cd FE
+          npm ci
+      
+      - name: Build frontend
+        run: |
+          cd FE
+          npm run build
+        env:
+          REACT_APP_API_URL: https://api.interv.swote.dev/api
+          CI: false
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+      
+      - name: Deploy to S3
+        run: |
+          cd FE
+          aws s3 sync build/ s3://${{ secrets.S3_FRONTEND_BUCKET }} --delete
+      
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+      
+      - name: Notify deployment complete
+        run: |
+          echo "✅ Frontend deployed successfully!"
+          echo "🌐 URL: https://app.interv.swote.dev"
 
-    - name: Download current task definition
-      run: |
-        aws ecs describe-task-definition \
-          --task-definition ${{ env.ECS_TASK_DEFINITION }} \
-          --query taskDefinition > task-definition.json
-
-    - name: Fill in the new image ID in the Amazon ECS task definition
-      id: task-def
-      uses: aws-actions/amazon-ecs-render-task-definition@v1
-      with:
-        task-definition: task-definition.json
-        container-name: interv-container
-        image: ${{ steps.build-image.outputs.image }}
-
-    - name: Deploy Amazon ECS task definition
-      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-      with:
-        task-definition: ${{ steps.task-def.outputs.task-definition }}
-        service: ${{ env.ECS_SERVICE }}
-        cluster: ${{ env.ECS_CLUSTER }}
-        wait-for-service-stability: true
-
-    - name: Verify deployment
-      run: |
-        echo "🎉 Deployment completed successfully!"
-        echo "Application URL: https://interv.swote.dev"
-        echo "Health Check: https://interv.swote.dev/actuator/health"
-        
-        # Wait a bit for the service to be fully updated
-        sleep 30
-        
-        # Check service status
-        aws ecs describe-services \
-          --cluster ${{ env.ECS_CLUSTER }} \
-          --services ${{ env.ECS_SERVICE }} \
-          --query 'services[0].[serviceName,status,runningCount,pendingCount,desiredCount]' \
-          --output table
-
-    - name: Notify deployment status
-      if: always()
-      run: |
-        if [ ${{ job.status }} == 'success' ]; then
-          echo "✅ Deployment successful! 🚀"
-          echo "Access your application at: https://interv.swote.dev"
-        else
-          echo "❌ Deployment failed! 😞"
-          echo "Check the logs above for error details."
-        fi
+  # 수동 전체 배포 (선택사항)
+  deploy-all:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Backend 빌드 및 배포
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      
+      - name: Build Backend
+        run: |
+          cd BE/inter-v
+          ./mvnw clean package -DskipTests
+      
+      # Frontend 빌드
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: FE/package-lock.json
+      
+      - name: Build Frontend
+        run: |
+          cd FE
+          npm ci
+          npm run build
+        env:
+          REACT_APP_API_URL: https://api.interv.swote.dev/api
+          CI: false
+      
+      # AWS 배포
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+      
+      - name: Deploy Backend to S3
+        run: |
+          cd BE/inter-v/target
+          aws s3 cp *.jar s3://${{ secrets.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar
+          
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          aws s3 cp *.jar s3://${{ secrets.S3_BACKEND_BUCKET }}/releases/$TIMESTAMP/inter-v.jar
+      
+      - name: Deploy Frontend to S3
+        run: |
+          cd FE
+          aws s3 sync build/ s3://${{ secrets.S3_FRONTEND_BUCKET }} --delete
+      
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+      
+      - name: Deployment Summary
+        run: |
+          echo "🎉 Full deployment completed!"
+          echo "📦 Backend: s3://${{ secrets.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar"
+          echo "🌐 Frontend: https://app.interv.swote.dev"
