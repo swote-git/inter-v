@@ -89,7 +89,7 @@ jobs:
         working-directory: ./BE/inter-v/target
         run: |
           echo "🚀 Uploading JAR to S3..."
-          aws s3 cp *.jar s3://${{ secrets.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar
+          aws s3 cp *.jar s3://${{ vars.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar
           echo "✅ JAR uploaded to latest/"
           
       - name: Create release with timestamp
@@ -97,15 +97,15 @@ jobs:
         run: |
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           echo "📦 Creating timestamped release: $TIMESTAMP"
-          aws s3 cp *.jar s3://${{ secrets.S3_BACKEND_BUCKET }}/releases/$TIMESTAMP/inter-v.jar
+          aws s3 cp *.jar s3://${{ vars.S3_BACKEND_BUCKET }}/releases/$TIMESTAMP/inter-v.jar
           echo "✅ JAR uploaded to $TIMESTAMP/"
           
       - name: Notify deployment complete
         run: |
           echo "✅ Backend JAR uploaded to S3!"
-          echo "📦 Latest: s3://${{ secrets.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar"
+          echo "📦 Latest: s3://${{ vars.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar"
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          echo "🕐 Timestamped: s3://${{ secrets.S3_BACKEND_BUCKET }}/releases/$TIMESTAMP/inter-v.jar"
+          echo "🕐 Timestamped: s3://${{ vars.S3_BACKEND_BUCKET }}/releases/$TIMESTAMP/inter-v.jar"
 
   # Frontend 배포
   deploy-frontend:
@@ -162,7 +162,7 @@ jobs:
         working-directory: ./FE
         run: |
           echo "🚀 Starting S3 deployment..."
-          aws s3 sync dist/ s3://${{ secrets.S3_FRONTEND_BUCKET }} --delete --exact-timestamps
+          aws s3 sync dist/ s3://${{ vars.S3_FRONTEND_BUCKET }} --delete --exact-timestamps
           echo "✅ S3 deployment completed!"
       
       - name: Invalidate CloudFront cache
@@ -228,17 +228,17 @@ jobs:
         working-directory: ./BE/inter-v/target
         run: |
           echo "🚀 Deploying backend JAR to S3..."
-          aws s3 cp *.jar s3://${{ secrets.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar
+          aws s3 cp *.jar s3://${{ vars.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar
           
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          aws s3 cp *.jar s3://${{ secrets.S3_BACKEND_BUCKET }}/releases/$TIMESTAMP/inter-v.jar
+          aws s3 cp *.jar s3://${{ vars.S3_BACKEND_BUCKET }}/releases/$TIMESTAMP/inter-v.jar
           echo "✅ Backend deployment completed!"
       
       - name: Deploy Frontend to S3
         working-directory: ./FE
         run: |
           echo "🚀 Deploying frontend to S3..."
-          aws s3 sync dist/ s3://${{ secrets.S3_FRONTEND_BUCKET }} --delete --exact-timestamps
+          aws s3 sync dist/ s3://${{ vars.S3_FRONTEND_BUCKET }} --delete --exact-timestamps
           echo "✅ Frontend deployment completed!"
       
       - name: Invalidate CloudFront
@@ -253,5 +253,5 @@ jobs:
       - name: Deployment Summary
         run: |
           echo "🎉 Full deployment completed!"
-          echo "📦 Backend: s3://${{ secrets.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar"
+          echo "📦 Backend: s3://${{ vars.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar"
           echo "🌐 Frontend: https://app.interv.swote.dev"
