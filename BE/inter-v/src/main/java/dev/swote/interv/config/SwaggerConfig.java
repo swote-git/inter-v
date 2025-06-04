@@ -5,10 +5,13 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.List;
 
 @Configuration
 @RequiredArgsConstructor
@@ -16,6 +19,9 @@ public class SwaggerConfig {
 
     @Value("${spring.profiles.active:local}")
     private String profile;
+
+    @Value("${server.port:8080}")
+    private String serverPort;
 
     @Bean
     public OpenAPI openAPI() {
@@ -34,9 +40,19 @@ public class SwaggerConfig {
 
         final Components components = new Components().addSecuritySchemes(keyName, securityScheme);
 
-        return new OpenAPI()
+        OpenAPI openAPI = new OpenAPI()
                 .info(info)
                 .addSecurityItem(securityRequirement)
                 .components(components);
+
+        // 개발 환경에서 서버 URL 명시적 설정
+        if ("local".equals(profile) || "dev".equals(profile)) {
+            Server localServer = new Server();
+            localServer.setUrl("http://localhost:" + serverPort);
+            localServer.setDescription("Local Development Server");
+            openAPI.setServers(List.of(localServer));
+        }
+
+        return openAPI;
     }
 }

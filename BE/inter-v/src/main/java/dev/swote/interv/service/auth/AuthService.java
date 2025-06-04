@@ -2,6 +2,9 @@ package dev.swote.interv.service.auth;
 
 import dev.swote.interv.domain.user.entity.User;
 import dev.swote.interv.domain.user.repository.UserRepository;
+import dev.swote.interv.exception.AuthenticationFailedException;
+import dev.swote.interv.exception.InvalidTokenException;
+import dev.swote.interv.exception.ResourceNotFoundException;
 import dev.swote.interv.util.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,11 +32,11 @@ public class AuthService {
     @Transactional(readOnly = true)
     public Map<String, Object> authenticate(String email, String password) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("잘못된 이메일 또는 비밀번호입니다."));
+                .orElseThrow(() -> new AuthenticationFailedException("error.auth.invalidCredentials"));
 
         // 비밀번호 검증
         if (!passwordEncoder.matches(password, user.getPassword())) {
-            throw new RuntimeException("잘못된 이메일 또는 비밀번호입니다.");
+            throw new AuthenticationFailedException("error.auth.invalidCredentials");
         }
 
         // JWT 토큰 생성
@@ -53,16 +56,16 @@ public class AuthService {
 
     public Map<String, Object> refreshToken(String refreshToken) {
         if (!jwtTokenProvider.validateToken(refreshToken)) {
-            throw new RuntimeException("유효하지 않은 리프레시 토큰입니다.");
+            throw new InvalidTokenException("error.token.invalid");
         }
 
         if (blacklistedTokens.contains(refreshToken)) {
-            throw new RuntimeException("만료된 리프레시 토큰입니다.");
+            throw new InvalidTokenException("error.token.expired");
         }
 
         String email = jwtTokenProvider.getEmailFromToken(refreshToken);
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
 
         // 새로운 액세스 토큰 생성
         String newAccessToken = jwtTokenProvider.createAccessToken(user.getEmail(), user.getId());
