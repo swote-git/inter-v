@@ -56,8 +56,10 @@ public class SecurityConfig {
         if ("local".equals(activeProfile) || "dev".equals(activeProfile)) {
             configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:*", "http://127.0.0.1:*"));
         } else {
-            // 운영 환경에서는 실제 프론트엔드 도메인으로 변경
-            configuration.setAllowedOrigins(Arrays.asList("https://yourdomain.com"));
+            configuration.setAllowedOrigins(Arrays.asList(
+                    "https://api.interv.swote.dev",
+                    "https://app.interv.swote.dev",
+                    "https://ml.interv.swote.dev"));
         }
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
