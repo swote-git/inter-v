@@ -1,257 +1,130 @@
-# .github/workflows/deploy.yml
-name: Deploy Frontend and Backend
+name: Deploy to AWS ECS
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
+    paths:
+      - 'BE/**'  # BE 폴더의 변경사항만 감지
+      - '.github/workflows/deploy.yml'
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
+    paths:
+      - 'BE/**'
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: interv
+  ECS_SERVICE: interv-service
+  ECS_CLUSTER: interv-cluster
+  ECS_TASK_DEFINITION: interv-task-ec2
 
 jobs:
-  # 변경된 파일 감지
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      backend: ${{ steps.changes.outputs.backend }}
-      frontend: ${{ steps.changes.outputs.frontend }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      
-      - uses: dorny/paths-filter@v2
-        id: changes
-        with:
-          filters: |
-            backend:
-              - 'BE/**'
-              - '**/*.java'
-              - '**/pom.xml'
-              - '**/build.gradle'
-              - '**/gradle.properties'
-            frontend:
-              - 'FE/**'
-              - '**/*.js'
-              - '**/*.jsx'
-              - '**/*.ts'
-              - '**/*.tsx'
-              - '**/package.json'
-              - '**/package-lock.json'
-
-  # Backend 배포
-  deploy-backend:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.backend == 'true'
+  deploy:
+    name: Deploy to ECS
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-      
-      - name: Cache Maven dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.m2
-          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-          restore-keys: ${{ runner.os }}-m2
-      
-      - name: Build with Maven
-        working-directory: ./BE/inter-v
-        run: ./mvnw clean package -DskipTests
-      
-      - name: Verify JAR build
-        working-directory: ./BE/inter-v
-        run: |
-          echo "📁 Checking target directory..."
-          ls -la target/
-          if ls target/*.jar 1> /dev/null 2>&1; then
-            echo "✅ JAR file found:"
-            ls -la target/*.jar
-          else
-            echo "❌ No JAR file found in target directory!"
-            exit 1
-          fi
-      
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-northeast-2
-      
-      - name: Upload JAR to S3
-        working-directory: ./BE/inter-v/target
-        run: |
-          echo "🚀 Uploading JAR to S3..."
-          aws s3 cp *.jar s3://${{ vars.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar
-          echo "✅ JAR uploaded to latest/"
-          
-      - name: Create release with timestamp
-        working-directory: ./BE/inter-v/target
-        run: |
-          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          echo "📦 Creating timestamped release: $TIMESTAMP"
-          aws s3 cp *.jar s3://${{ vars.S3_BACKEND_BUCKET }}/releases/$TIMESTAMP/inter-v.jar
-          echo "✅ JAR uploaded to $TIMESTAMP/"
-          
-      - name: Notify deployment complete
-        run: |
-          echo "✅ Backend JAR uploaded to S3!"
-          echo "📦 Latest: s3://${{ vars.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar"
-          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          echo "🕐 Timestamped: s3://${{ vars.S3_BACKEND_BUCKET }}/releases/$TIMESTAMP/inter-v.jar"
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-  # Frontend 배포
-  deploy-frontend:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: FE/package-lock.json
-      
-      - name: Install dependencies
-        working-directory: ./FE
-        run: npm ci
-      
-      - name: Build frontend
-        working-directory: ./FE
-        run: npm run build
-        env:
-          VITE_API_URL: https://api.interv.swote.dev/api
-          CI: false
-      
-      - name: Verify build output
-        working-directory: ./FE
-        run: |
-          echo "📁 Checking dist directory (Vite output)..."
-          ls -la
-          if [ -d "dist" ]; then
-            echo "✅ Dist directory exists"
-            echo "📂 Dist contents:"
-            ls -la dist/
-          else
-            echo "❌ Dist directory not found!"
-            echo "📂 Current directory contents:"
-            ls -la
-            exit 1
-          fi
-      
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-northeast-2
-      
-      - name: Deploy to S3
-        working-directory: ./FE
-        run: |
-          echo "🚀 Starting S3 deployment..."
-          aws s3 sync dist/ s3://${{ vars.S3_FRONTEND_BUCKET }} --delete --exact-timestamps
-          echo "✅ S3 deployment completed!"
-      
-      - name: Invalidate CloudFront cache
-        run: |
-          echo "🔄 Invalidating CloudFront cache..."
-          INVALIDATION_ID=$(aws cloudfront create-invalidation \
-            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
-            --paths "/*" \
-            --query 'Invalidation.Id' --output text)
-          echo "✅ CloudFront invalidation created: $INVALIDATION_ID"
-      
-      - name: Notify deployment complete
-        run: |
-          echo "✅ Frontend deployed successfully!"
-          echo "🌐 URL: https://app.interv.swote.dev"
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
 
-  # 수동 전체 배포 (선택사항)
-  deploy-all:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Cache Gradle packages
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x BE/inter-v/gradlew
       
-      # Backend 빌드 및 배포
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'temurin'
+    - name: Test with Gradle
+      run: |
+        cd BE/inter-v
+        ./gradlew test --no-daemon
       
-      - name: Build Backend
-        working-directory: ./BE/inter-v
-        run: ./mvnw clean package -DskipTests
-      
-      # Frontend 빌드
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: FE/package-lock.json
-      
-      - name: Build Frontend
-        working-directory: ./FE
-        run: |
-          npm ci
-          npm run build
-        env:
-          VITE_API_URL: https://api.interv.swote.dev/api
-          CI: false
-      
-      # AWS 배포
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-northeast-2
-      
-      - name: Deploy Backend to S3
-        working-directory: ./BE/inter-v/target
-        run: |
-          echo "🚀 Deploying backend JAR to S3..."
-          aws s3 cp *.jar s3://${{ vars.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar
-          
-          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          aws s3 cp *.jar s3://${{ vars.S3_BACKEND_BUCKET }}/releases/$TIMESTAMP/inter-v.jar
-          echo "✅ Backend deployment completed!"
-      
-      - name: Deploy Frontend to S3
-        working-directory: ./FE
-        run: |
-          echo "🚀 Deploying frontend to S3..."
-          aws s3 sync dist/ s3://${{ vars.S3_FRONTEND_BUCKET }} --delete --exact-timestamps
-          echo "✅ Frontend deployment completed!"
-      
-      - name: Invalidate CloudFront
-        run: |
-          echo "🔄 Invalidating CloudFront cache..."
-          INVALIDATION_ID=$(aws cloudfront create-invalidation \
-            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
-            --paths "/*" \
-            --query 'Invalidation.Id' --output text)
-          echo "✅ CloudFront invalidation created: $INVALIDATION_ID"
-      
-      - name: Deployment Summary
-        run: |
-          echo "🎉 Full deployment completed!"
-          echo "📦 Backend: s3://${{ vars.S3_BACKEND_BUCKET }}/releases/latest/inter-v.jar"
-          echo "🌐 Frontend: https://app.interv.swote.dev"
+    - name: Build with Gradle
+      run: |
+        cd BE/inter-v
+        ./gradlew clean build -x test --no-daemon
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Build a docker container and push it to ECR
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    - name: Download current task definition
+      run: |
+        aws ecs describe-task-definition \
+          --task-definition ${{ env.ECS_TASK_DEFINITION }} \
+          --query taskDefinition > task-definition.json
+
+    - name: Fill in the new image ID in the Amazon ECS task definition
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: task-definition.json
+        container-name: interv-container
+        image: ${{ steps.build-image.outputs.image }}
+
+    - name: Deploy Amazon ECS task definition
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        service: ${{ env.ECS_SERVICE }}
+        cluster: ${{ env.ECS_CLUSTER }}
+        wait-for-service-stability: true
+
+    - name: Verify deployment
+      run: |
+        echo "🎉 Deployment completed successfully!"
+        echo "Application URL: https://interv.swote.dev"
+        echo "Health Check: https://interv.swote.dev/actuator/health"
+        
+        # Wait a bit for the service to be fully updated
+        sleep 30
+        
+        # Check service status
+        aws ecs describe-services \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services ${{ env.ECS_SERVICE }} \
+          --query 'services[0].[serviceName,status,runningCount,pendingCount,desiredCount]' \
+          --output table
+
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ ${{ job.status }} == 'success' ]; then
+          echo "✅ Deployment successful! 🚀"
+          echo "Access your application at: https://interv.swote.dev"
+        else
+          echo "❌ Deployment failed! 😞"
+          echo "Check the logs above for error details."
+        fi
