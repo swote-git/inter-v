@@ -22,6 +22,7 @@ public class WebConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
                 .allowedOrigins(buildAllowedOrigins())
+//                .allowedOrigins("*") //FOR DEV
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .maxAge(-1)
@@ -55,8 +56,10 @@ public class WebConfig implements WebMvcConfigurer {
                     "https://api.interv.swote.dev",
                     "https://ml.interv.swote.dev",
                     "https://interv.swote.dev",
-                    "http://localhost:*",
-                    "http://127.0.0.1:*"
+                    "http://localhost:5173",
+                    "http://localhost:3000",
+                    "http://127.0.0.1:5173",
+                    "http://127.0.0.1:3000"
             ));
         }
 
