@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
@@ -22,6 +23,9 @@ public class SwaggerConfig {
 
     @Value("${server.port:8080}")
     private String serverPort;
+
+    @Value("${swagger.server.url:}")
+    private String swaggerServerUrl;
 
     @Bean
     public OpenAPI openAPI() {
@@ -45,13 +49,41 @@ public class SwaggerConfig {
                 .addSecurityItem(securityRequirement)
                 .components(components);
 
-        // 개발 환경에서 서버 URL 명시적 설정
+        // 서버 URL 설정
+        List<Server> servers = new ArrayList<>();
+
         if ("local".equals(profile) || "dev".equals(profile)) {
+            // 로컬 개발 환경
             Server localServer = new Server();
             localServer.setUrl("http://localhost:" + serverPort);
             localServer.setDescription("Local Development Server");
-            openAPI.setServers(List.of(localServer));
+            servers.add(localServer);
+
+            // 로컬에서도 HTTPS 테스트 가능하도록
+            Server localHttpsServer = new Server();
+            localHttpsServer.setUrl("https://localhost:" + serverPort);
+            localHttpsServer.setDescription("Local HTTPS Server");
+            servers.add(localHttpsServer);
+        } else {
+            // 운영 환경 - HTTPS만 사용
+            Server prodServer = new Server();
+
+            if (swaggerServerUrl != null && !swaggerServerUrl.trim().isEmpty()) {
+                prodServer.setUrl(swaggerServerUrl);
+            } else {
+                prodServer.setUrl("https://api.interv.swote.dev");
+            }
+            prodServer.setDescription("Production Server (HTTPS)");
+            servers.add(prodServer);
+
+            // 백업 서버 URL (필요 시)
+            Server backupServer = new Server();
+            backupServer.setUrl("https://api-backup.interv.swote.dev");
+            backupServer.setDescription("Backup Production Server");
+            servers.add(backupServer);
         }
+
+        openAPI.setServers(servers);
 
         return openAPI;
     }

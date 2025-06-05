@@ -45,18 +45,18 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registration.setOrder(1);
         return registration;
     }
-
-    // SecurityConfig에서 처리하고 있지만, 추가적인 CORS 설정을 위해 활성화
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        if ("local".equals(activeProfile) || "dev".equals(activeProfile)) {
-            registry.addMapping("/**")
-                    .allowedOriginPatterns("*")
-                    .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD")
-                    .allowedHeaders("*")
-                    .exposedHeaders("Authorization", "Content-Type")
-                    .allowCredentials(true)
-                    .maxAge(3600);
-        }
-    }
+//
+//    // SecurityConfig에서 처리하고 있지만, 추가적인 CORS 설정을 위해 활성화
+//    @Override
+//    public void addCorsMappings(CorsRegistry registry) {
+//        if ("local".equals(activeProfile) || "dev".equals(activeProfile)) {
+//            registry.addMapping("/**")
+//                    .allowedOriginPatterns("*")
+//                    .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD")
+//                    .allowedHeaders("*")
+//                    .exposedHeaders("Authorization", "Content-Type")
+//                    .allowCredentials(true)
+//                    .maxAge(3600);
+//        }
+//    }
 }

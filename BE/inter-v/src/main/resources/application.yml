@@ -1,4 +1,4 @@
-# application.yml - 기본 인증 방식
+# application.yml
 spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
@@ -44,7 +44,7 @@ jwt:
 aws:
   region: ${AWS_REGION:ap-northeast-2}
   s3:
-    bucket: ${S3_BUCKET_NAME:interv-storage}
+    bucket: ${S3_BUCKET_NAME:interv-storage-t8osm0s8}
 
 # 서버 설정
 server:
@@ -66,6 +66,16 @@ llm:
     url: ${LLM_API_URL:http://localhost:8000}
     key: ${LLM_API_KEY:dummy-api-key}
 
+# CORS 설정 (환경변수로 제어)
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+  allow-localhost: ${CORS_ALLOW_LOCALHOST:true}
+
+# 📚 Swagger 설정
+swagger:
+  server:
+    url: ${SWAGGER_SERVER_URL:}
+
 # 로깅 설정
 logging:
   level:
@@ -73,6 +83,7 @@ logging:
     dev.swote.interv: ${LOG_LEVEL_APP:DEBUG}
     org.springframework: ${LOG_LEVEL_SPRING:WARN}
     org.springframework.security: DEBUG
+    org.springframework.web.cors: ${LOG_LEVEL_CORS:DEBUG}  # CORS 디버깅 추가
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
@@ -110,11 +121,22 @@ aws:
   s3:
     bucket: local-test-bucket
 
+# 로컬 개발 CORS 설정
+cors:
+  allow-localhost: true
+  allowed-origins: "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080"
+
+# 로컬 Swagger 설정
+swagger:
+  server:
+    url: "http://localhost:8080"
+
 logging:
   level:
     root: INFO
     dev.swote.interv: DEBUG
     org.springframework.security: DEBUG
+    org.springframework.web.cors: DEBUG
 
 ---
 # 운영 환경 설정
@@ -147,12 +169,24 @@ spring:
     serialization:
       indent_output: false
 
+# 운영 환경 CORS 설정 (중요!)
+cors:
+  # 로컬 개발자들이 운영 API를 사용할 수 있도록 허용
+  allow-localhost: ${CORS_ALLOW_LOCALHOST:true}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:https://app.interv.swote.dev,https://interv.swote.dev,http://localhost:3000,http://localhost:3001}
+
+# 운영 환경 Swagger 설정 (HTTPS 강제)
+swagger:
+  server:
+    url: ${SWAGGER_SERVER_URL:https://api.interv.swote.dev}
+
 # 운영 환경 로깅
 logging:
   level:
     root: WARN
     dev.swote.interv: INFO
     org.springframework.security: WARN
+    org.springframework.web.cors: INFO  # 운영에서도 CORS 로그 확인
   file:
     name: /var/log/interv/application.log
     max-size: 10MB
