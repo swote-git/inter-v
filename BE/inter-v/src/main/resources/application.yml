@@ -33,7 +33,11 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
-
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
 # JWT 설정
 jwt:
   secret: ${JWT_SECRET:mySecretKeyForJwtTokenGenerationThatNeedsToBeAtLeast256BitsLongForHS256Algorithm}
@@ -138,6 +142,18 @@ logging:
     org.springframework.security: DEBUG
     org.springframework.web.cors: DEBUG
 
+# LLM API 설정 - 업데이트됨
+llm:
+  api:
+    url: ${LLM_API_URL:http://localhost:8000}  # ML 서버 URL
+    key: ${LLM_API_KEY:dummy-api-key}         # ML 서버 API 키 (필요시)
+    timeout:
+      connect: ${LLM_API_CONNECT_TIMEOUT:30}  # 연결 타임아웃 (초)
+      read: ${LLM_API_READ_TIMEOUT:120}       # 읽기 타임아웃 (초)
+    retry:
+      max-attempts: ${LLM_API_MAX_RETRY:3}    # 최대 재시도 횟수
+      delay: ${LLM_API_RETRY_DELAY:1000}      # 재시도 간격 (밀리초)
+
 ---
 # 운영 환경 설정
 spring:
@@ -191,3 +207,22 @@ logging:
     name: /var/log/interv/application.log
     max-size: 10MB
     max-history: 10
+
+
+# LLM API 설정 - 업데이트됨
+llm:
+  api:
+    url: ${LLM_API_URL:https://ml.interv.swote.dev:8000}  # ML 서버 URL
+    key: ${LLM_API_KEY:dummy-api-key}         # ML 서버 API 키 (필요시)
+    timeout:
+      connect: ${LLM_API_CONNECT_TIMEOUT:30}  # 연결 타임아웃 (초)
+      read: ${LLM_API_READ_TIMEOUT:120}       # 읽기 타임아웃 (초)
+    retry:
+      max-attempts: ${LLM_API_MAX_RETRY:3}    # 최대 재시도 횟수
+      delay: ${LLM_API_RETRY_DELAY:1000}      # 재시도 간격 (밀리초)
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
