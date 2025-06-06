@@ -46,9 +46,6 @@ prometheus-fastapi-instrumentator==7.1.0
 # black==23.11.0
 # flake8==6.1.0
 
-# CORS & Middleware
-python-cors==1.7.0
-
 # Caching (선택적)
 redis==6.2.0
 aioredis==2.0.1
