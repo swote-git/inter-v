@@ -1,13 +1,38 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Dropdown from '../utils/Dropdown';
 
 function Header() {
-
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userId, setUserId] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const navigate = useNavigate();
 
   const trigger = useRef(null);
   const mobileNav = useRef(null);
+
+  // Check login status on component mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const storedUserId = localStorage.getItem('userId');
+    const storedEmail = localStorage.getItem('userEmail');
+    if (token && storedUserId) {
+      setIsLoggedIn(true);
+      setUserId(storedUserId);
+      setUserEmail(storedEmail);
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userEmail');
+    setIsLoggedIn(false);
+    setUserId('');
+    setUserEmail('');
+    navigate('/');
+  };
 
   // close the mobile menu on click outside
   useEffect(() => {
@@ -68,16 +93,36 @@ function Header() {
                   마이 페이지
                 </span>
               </li>
-              <li>
-                <Link to="/signin" className="font-medium text-purple-600 hover:text-gray-200 px-4 py-3 flex items-center transition duration-150 ease-in-out">
-                  로그인
-                </Link>
-              </li>
-              <li>
-                <Link to="/signup" className="btn-sm text-white bg-purple-600 hover:bg-purple-700 ml-3">
-                  회원가입
-                </Link>
-              </li>
+              {!isLoggedIn ? (
+                <>
+                  <li>
+                    <Link to="/signin" className="font-medium text-purple-600 hover:text-gray-200 px-4 py-3 flex items-center transition duration-150 ease-in-out">
+                      로그인
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/signup" className="btn-sm text-white bg-purple-600 hover:bg-purple-700 ml-3">
+                      회원가입
+                    </Link>
+                  </li>
+                </>
+              ) : (
+                <>
+                  <li>
+                    <span className="font-medium text-purple-600 px-4 py-3 flex items-center">
+                      {userEmail}
+                    </span>
+                  </li>
+                  <li>
+                    <button
+                      onClick={handleLogout}
+                      className="btn-sm text-white bg-purple-600 hover:bg-purple-700 ml-3"
+                    >
+                      로그아웃
+                    </button>
+                  </li>
+                </>
+              )}
             </ul>
           </nav>
 
@@ -127,16 +172,36 @@ function Header() {
                     마이 페이지
                   </span>
                 </li>
-                <li>
-                  <Link to="/signin" className="flex font-medium w-full text-purple-600 hover:text-gray-200 py-2 justify-center">
-                    로그인
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/signup" className="font-medium w-full inline-flex items-center justify-center border border-transparent px-4 py-2 my-2 rounded-sm text-white bg-purple-600 hover:bg-purple-700 transition duration-150 ease-in-out">
-                    회원가입
-                  </Link>
-                </li>
+                {!isLoggedIn ? (
+                  <>
+                    <li>
+                      <Link to="/signin" className="flex font-medium w-full text-purple-600 hover:text-gray-200 py-2 justify-center">
+                        로그인
+                      </Link>
+                    </li>
+                    <li>
+                      <Link to="/signup" className="font-medium w-full inline-flex items-center justify-center border border-transparent px-4 py-2 my-2 rounded-sm text-white bg-purple-600 hover:bg-purple-700 transition duration-150 ease-in-out">
+                        회원가입
+                      </Link>
+                    </li>
+                  </>
+                ) : (
+                  <>
+                    <li>
+                      <span className="flex font-medium w-full text-purple-600 py-2 justify-center">
+                        {userEmail}
+                      </span>
+                    </li>
+                    <li>
+                      <button
+                        onClick={handleLogout}
+                        className="font-medium w-full inline-flex items-center justify-center border border-transparent px-4 py-2 my-2 rounded-sm text-white bg-purple-600 hover:bg-purple-700 transition duration-150 ease-in-out"
+                      >
+                        로그아웃
+                      </button>
+                    </li>
+                  </>
+                )}
               </ul>
             </nav>
           </div>
