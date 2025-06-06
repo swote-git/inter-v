@@ -10,18 +10,18 @@ function SignIn() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userEmail, setUserEmail] = useState('');
+  const [userId, setUserId] = useState('');
   const [showLogout, setShowLogout] = useState(false);
   const navigate = useNavigate();
   const userRef = useRef(null);
 
   // 로그인 상태 확인 (새로고침 시에도 유지)
   useEffect(() => {
-    // 로그인 후 localStorage에 저장된 이메일로 로그인 상태 유지
-    const storedEmail = localStorage.getItem('userEmail');
-    if (storedEmail) {
+    const token = localStorage.getItem('token');
+    const storedUserId = localStorage.getItem('userId');
+    if (token && storedUserId) {
       setIsLoggedIn(true);
-      setUserEmail(storedEmail);
+      setUserId(storedUserId);
     }
   }, []);
 
@@ -50,10 +50,18 @@ function SignIn() {
         body: JSON.stringify({ email, password }),
         credentials: 'include',
       });
+
       if (!res.ok) throw new Error('로그인 실패');
-      setIsLoggedIn(true);
-      setUserEmail(email);
+
+      const data = await res.json();
+
+      // 토큰, 사용자 ID, 이메일 저장
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('userId', data.userId);
       localStorage.setItem('userEmail', email);
+
+      setIsLoggedIn(true);
+      setUserId(data.userId);
       setError('');
       navigate('/');
     } catch (err) {
@@ -71,10 +79,13 @@ function SignIn() {
         },
       });
       if (res.ok) {
-        setIsLoggedIn(false);
-        setUserEmail('');
+        // 로컬 스토리지에서 토큰, 사용자 ID, 이메일 제거
+        localStorage.removeItem('token');
+        localStorage.removeItem('userId');
         localStorage.removeItem('userEmail');
-        setShowLogout(false);
+
+        setIsLoggedIn(false);
+        setUserId('');
         alert('로그아웃 되었습니다.');
         navigate('/signin');
       }
@@ -89,7 +100,7 @@ function SignIn() {
       {/*  Site header */}
       <Header
         isLoggedIn={isLoggedIn}
-        userEmail={userEmail}
+        userEmail={userId}
         onLogout={handleLogout}
       />
 
@@ -169,7 +180,7 @@ function SignIn() {
                       className="relative cursor-pointer text-white bg-purple-600 rounded px-4 py-2 w-full text-center"
                       onClick={() => setShowLogout((prev) => !prev)}
                     >
-                      {userEmail}
+                      {userId}
                       {showLogout && (
                         <div className="absolute left-1/2 -translate-x-1/2 mt-2 bg-white border rounded shadow-lg z-10 w-32">
                           <button
