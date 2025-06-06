@@ -26,7 +26,7 @@ class InterviewQuestionRequest(BaseModel):
         return v.strip()
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "resume": "Java, Spring Boot 경험이 있는 백엔드 개발자입니다...",
                 "position": "백엔드 개발자",
@@ -41,7 +41,7 @@ class InterviewQuestionItem(BaseModel):
     difficultyLevel: int = Field(..., description="난이도 (1~3)", ge=1, le=3)
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "content": "Spring Boot와 JPA를 활용한 프로젝트 경험에 대해 설명해주세요.",
                 "type": "TECHNICAL",
@@ -54,7 +54,7 @@ class InterviewQuestionResponse(BaseModel):
     questions: List[InterviewQuestionItem] = Field(..., description="생성된 질문 목록")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "questions": [
                     {
