@@ -21,12 +21,12 @@ python-multipart==0.0.20
 aiofiles==24.1.0
 
 # JSON & Data Processing
-orjson==3.9.10
-pandas==2.1.4
+orjson==3.10.18
+pandas==2.3.0
 numpy==2.2.6
 
 # Authentication & Security (선택적)
-python-jose[cryptography]==3.3.0
+python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.20
 
