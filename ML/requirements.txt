@@ -1,0 +1,67 @@
+# FastAPI Core
+fastapi==0.115.12
+uvicorn[standard]==0.34.3
+gunicorn==23.0.0
+
+# OpenAI & LLM
+openai==1.3.8
+tiktoken==0.9.0
+
+# Data Validation & Environment
+pydantic==2.5.0
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+
+# HTTP Client
+httpx==0.28.1
+requests==2.31.0
+
+# File Handling
+python-multipart==0.0.20
+aiofiles==24.1.0
+
+# JSON & Data Processing
+orjson==3.9.10
+pandas==2.1.4
+numpy==2.2.6
+
+# Authentication & Security (선택적)
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.20
+
+# Database (선택적 - 필요시 주석 해제)
+# sqlalchemy==2.0.23
+# psycopg2-binary==2.9.9
+# alembic==1.13.1
+
+# Monitoring & Logging
+structlog==25.4.0
+prometheus-fastapi-instrumentator==7.1.0
+
+# Development & Testing (개발시에만 필요)
+# pytest==7.4.3
+# pytest-asyncio==0.21.1
+# httpx==0.25.2  # for testing
+# black==23.11.0
+# flake8==6.1.0
+
+# CORS & Middleware
+python-cors==1.7.0
+
+# Caching (선택적)
+redis==6.2.0
+aioredis==2.0.1
+
+# Job Queue (선택적)
+# celery==5.3.4
+# celery[redis]==5.3.4
+
+# Email (선택적)
+# fastapi-mail==1.4.1
+
+# Rate Limiting (선택적)
+slowapi==0.1.9
+
+# Health Check & Metrics
+psutil==7.0.0
