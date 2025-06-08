@@ -1,300 +1,268 @@
 import React, { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Header from '../partials/Header';
 import Footer from '../partials/Footer';
 
 function Resume() {
+
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [userId, setUserId] = useState('');
+  const storedUserId = localStorage.getItem('userId');
+  const token = localStorage.getItem('token');
+
   const [formData, setFormData] = useState({
-    // 기본 정보
-    name: '',
-    email: '',
-    phone: '',
-    github: '',
-    blog: '',
-    
-    // 학력
+    title: '',
+    content: '',
+    objective: '',
+    skills: [''],
+    projects: [{
+      projectName: '',
+      description: '',
+      startDate: '',
+      endDate: '',
+      inProgress: false
+    }],
+    certifications: [{
+      certificationName: '',
+      issuingOrganization: '',
+      acquiredDate: '',
+      expiryDate: '',
+      noExpiry: false
+    }],
+    workExperiences: [{
+      companyName: '',
+      position: '',
+      department: '',
+      location: '',
+      startDate: '',
+      endDate: '',
+      currentlyWorking: false,
+      responsibilities: '',
+      achievements: ''
+    }],
     educations: [{
-      id: 1,
       schoolType: '',
       schoolName: '',
       location: '',
       major: '',
-      degree: '',
-      startDate: '',
-      endDate: '',
-      gpa: '',
-      isGraduated: true
-    }],
-    
-    // 경력
-    experiences: [{
-      id: 1,
-      companyName: '',
-      position: '',
-      location: '',
-      startDate: '',
-      endDate: '',
-      isCurrent: false,
-      description: '',
-      achievements: '',
-      skills: ''
-    }],
-    
-    // 기술 스택
-    skills: {
-      languages: [],
-      frameworks: [],
-      databases: [],
-      cloud: [],
-      tools: [],
-      others: []
-    },
-    
-    // 자격증
-    certificates: [{
-      id: 1,
-      name: '',
-      issuer: '',
-      date: '',
-      expiryDate: '',
-      credentialId: '',
-      isExpired: false
-    }],
-    
-    // 프로젝트
-    projects: [{
-      id: 1,
-      name: '',
-      startDate: '',
-      endDate: '',
-      isCurrent: false,
-      role: '',
-      description: '',
-      technologies: '',
-      achievements: '',
-      link: ''
-    }],
-    
-    // 자기소개
-    introduction: {
-      motivation: '',
-      goals: '',
-      strengths: '',
-      personality: ''
-    }
+      enrollmentDate: '',
+      graduationDate: '',
+      inProgress: false,
+      gpa: ''
+    }]
   });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    // TODO: API 연동
-    console.log('Form submitted:', formData);
-  };
+  const handleInputChange = (e, arrayName, index) => {
+    const { name, value, type, checked } = e.target;
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleEducationChange = (id, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      educations: prev.educations.map(edu => 
-        edu.id === id ? { ...edu, [field]: value } : edu
-      )
-    }));
-  };
-
-  const addEducation = () => {
-    setFormData(prev => ({
-      ...prev,
-      educations: [
-        ...prev.educations,
-        {
-          id: prev.educations.length + 1,
-          schoolType: '',
-          schoolName: '',
-          location: '',
-          major: '',
-          degree: '',
-          startDate: '',
-          endDate: '',
-          gpa: '',
-          isGraduated: true
-        }
-      ]
-    }));
-  };
-
-  const removeEducation = (id) => {
-    setFormData(prev => ({
-      ...prev,
-      educations: prev.educations.filter(edu => edu.id !== id)
-    }));
-  };
-
-  const handleExperienceChange = (id, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      experiences: prev.experiences.map(exp => 
-        exp.id === id ? { ...exp, [field]: value } : exp
-      )
-    }));
-  };
-
-  const addExperience = () => {
-    setFormData(prev => ({
-      ...prev,
-      experiences: [
-        ...prev.experiences,
-        {
-          id: prev.experiences.length + 1,
-          companyName: '',
-          position: '',
-          location: '',
-          startDate: '',
-          endDate: '',
-          isCurrent: false,
-          description: '',
-          achievements: '',
-          skills: ''
-        }
-      ]
-    }));
-  };
-
-  const removeExperience = (id) => {
-    setFormData(prev => ({
-      ...prev,
-      experiences: prev.experiences.filter(exp => exp.id !== id)
-    }));
-  };
-
-  const getSchoolTypeOptions = () => {
-    return [
-      { value: 'high', label: '고등학교' },
-      { value: 'college2', label: '2년제 대학' },
-      { value: 'college3', label: '3년제 대학' },
-      { value: 'college4', label: '4년제 대학' },
-      { value: 'master', label: '대학원(석사)' },
-      { value: 'phd', label: '대학원(박사)' }
-    ];
-  };
-
-  const getDegreeOptions = (schoolType) => {
-    switch(schoolType) {
-      case 'high':
-        return [];
-      case 'college2':
-      case 'college3':
-      case 'college4':
-        return [
-          { value: 'associate', label: '전문학사' },
-          { value: 'bachelor', label: '학사' }
-        ];
-      case 'master':
-        return [
-          { value: 'master', label: '석사' }
-        ];
-      case 'phd':
-        return [
-          { value: 'phd', label: '박사' }
-        ];
-      default:
-        return [];
+    if (arrayName === 'skills') {
+      // 기술 스택 배열 처리
+      setFormData(prev => ({
+        ...prev,
+        skills: prev.skills.map((skill, i) => {
+          if (i === index) {
+            return value;
+          }
+          return skill;
+        })
+      }));
+    } else if (arrayName) {
+      setFormData(prev => ({
+        ...prev,
+        [arrayName]: prev[arrayName].map((item, i) => {
+          if (i === index) {
+            if (type === 'checkbox') {
+              return { ...item, [name]: checked };
+            }
+            return { ...item, [name]: value };
+          }
+          return item;
+        })
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value
+      }));
     }
   };
 
-  const handleSkillChange = (category, value) => {
-    setFormData(prev => ({
-      ...prev,
-      skills: {
-        ...prev.skills,
-        [category]: value.split(',').map(skill => skill.trim()).filter(skill => skill)
+  const addArrayItem = (section) => {
+    const emptyItem = {
+      projects: {
+        projectName: '',
+        description: '',
+        startDate: '',
+        endDate: '',
+        inProgress: false
+      },
+      certifications: {
+        certificationName: '',
+        issuingOrganization: '',
+        acquiredDate: '',
+        expiryDate: '',
+        noExpiry: false
+      },
+      workExperiences: {
+        companyName: '',
+        position: '',
+        department: '',
+        location: '',
+        startDate: '',
+        endDate: '',
+        currentlyWorking: false,
+        responsibilities: '',
+        achievements: ''
+      },
+      educations: {
+        schoolType: '',
+        schoolName: '',
+        location: '',
+        major: '',
+        enrollmentDate: '',
+        graduationDate: '',
+        inProgress: false,
+        gpa: ''
       }
-    }));
+    };
+
+    setFormData({
+      ...formData,
+      [section]: [...formData[section], emptyItem[section]]
+    });
   };
 
-  const handleCertificateChange = (id, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      certificates: prev.certificates.map(cert => 
-        cert.id === id ? { ...cert, [field]: value } : cert
-      )
-    }));
+  const removeArrayItem = (section, index) => {
+    const newArray = formData[section].filter((_, i) => i !== index);
+    setFormData({
+      ...formData,
+      [section]: newArray
+    });
   };
 
-  const addCertificate = () => {
-    setFormData(prev => ({
-      ...prev,
-      certificates: [
-        ...prev.certificates,
-        {
-          id: prev.certificates.length + 1,
-          name: '',
-          issuer: '',
-          date: '',
-          expiryDate: '',
-          credentialId: '',
-          isExpired: false
+  const addSkill = () => {
+    setFormData({
+      ...formData,
+      skills: [...formData.skills, '']
+    });
+  };
+
+  const removeSkill = (index) => {
+    const newSkills = formData.skills.filter((_, i) => i !== index);
+    setFormData({
+      ...formData,
+      skills: newSkills
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    console.log('토큰resume:', token);
+    console.log('유저아이디resume:', storedUserId)
+    try {
+      // 여러 방식으로 userId를 꺼내보기
+      let id = storedUserId;
+      if (!id) {
+        // user 객체로 저장된 경우
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          try {
+            const userObj = JSON.parse(userStr);
+            id = userObj.id;
+          } catch { }
         }
-      ]
-    }));
-  };
-
-  const removeCertificate = (id) => {
-    setFormData(prev => ({
-      ...prev,
-      certificates: prev.certificates.filter(cert => cert.id !== id)
-    }));
-  };
-
-  const handleProjectChange = (id, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      projects: prev.projects.map(project => 
-        project.id === id ? { ...project, [field]: value } : project
-      )
-    }));
-  };
-
-  const addProject = () => {
-    setFormData(prev => ({
-      ...prev,
-      projects: [
-        ...prev.projects,
-        {
-          id: prev.projects.length + 1,
-          name: '',
-          startDate: '',
-          endDate: '',
-          isCurrent: false,
-          role: '',
-          description: '',
-          technologies: '',
-          achievements: '',
-          link: ''
-        }
-      ]
-    }));
-  };
-
-  const removeProject = (id) => {
-    setFormData(prev => ({
-      ...prev,
-      projects: prev.projects.filter(project => project.id !== id)
-    }));
-  };
-
-  const handleIntroductionChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      introduction: {
-        ...prev.introduction,
-        [field]: value
       }
-    }));
+
+      if (!id || isNaN(Number(id))) {
+        alert('로그인이 필요합니다. (userId가 없습니다)');
+        return;
+      }
+
+      id = Number(id);
+
+      if (!id || isNaN(id)) {
+        alert('userId가 올바르지 않습니다. 다시 로그인 해주세요.');
+        return;
+      }
+
+      // API 스펙에 맞게 데이터 구조 변환
+      const resumeData = {
+        title: formData.title,
+        content: formData.content,
+        objective: formData.objective,
+        skills: formData.skills,
+        projects: formData.projects.map(project => ({
+          projectName: project.projectName,
+          description: project.description,
+          startDate: project.startDate,
+          endDate: project.inProgress ? null : project.endDate,
+          inProgress: project.inProgress
+        })),
+        certifications: formData.certifications.map(cert => ({
+          certificationName: cert.certificationName,
+          issuingOrganization: cert.issuingOrganization,
+          acquiredDate: cert.acquiredDate,
+          expiryDate: cert.noExpiry ? null : cert.expiryDate,
+          noExpiry: cert.noExpiry
+        })),
+        workExperiences: formData.workExperiences.map(work => ({
+          companyName: work.companyName,
+          position: work.position,
+          department: work.department || '',
+          location: work.location || '',
+          startDate: work.startDate,
+          endDate: work.currentlyWorking ? null : work.endDate,
+          currentlyWorking: work.currentlyWorking,
+          responsibilities: work.responsibilities,
+          achievements: work.achievements || ''
+        })),
+        educations: formData.educations.map(edu => ({
+          schoolType: edu.schoolType,
+          schoolName: edu.schoolName,
+          location: edu.location || '',
+          major: edu.major || '',
+          enrollmentDate: edu.enrollmentDate,
+          graduationDate: edu.inProgress ? null : edu.graduationDate,
+          inProgress: edu.inProgress,
+          gpa: edu.gpa || ''
+        }))
+      };
+
+      // API 호출
+      const response = await fetch(`https://api.interv.swote.dev/api/resumes?id=${id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': '*/*',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(resumeData)
+      });
+      console.log('토큰22:', token);
+      // 서버 오류 처리
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage;
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || '이력서 제출에 실패했습니다.';
+        } catch {
+          errorMessage = errorText || '이력서 제출에 실패했습니다.';
+        }
+        throw new Error(errorMessage);
+      }
+
+
+      console.log(localStorage.getItem('token'));
+      // 정상 응답 처리
+      alert('이력서가 성공적으로 제출되었습니다.');
+      navigate('/resume');
+    } catch (error) {
+      console.error('이력서 제출 중 오류 발생:', error);
+      alert(error.message || '이력서 제출 중 오류가 발생했습니다.');
+    }
   };
 
   return (
@@ -307,772 +275,507 @@ function Resume() {
             <div className="pt-32 pb-12 md:pt-40 md:pb-20">
               <div className="max-w-3xl mx-auto">
                 <h1 className="h2 mb-8">이력서 작성</h1>
-                
-                <form onSubmit={handleSubmit} className="space-y-8">
-                  {/* 기본 정보 섹션 */}
+
+                <form onSubmit={handleSubmit} className="space-y-12">
+                  {/* 기본 정보 */}
                   <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 shadow-lg">
                     <h2 className="text-xl font-medium mb-4 text-white">기본 정보</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300" htmlFor="name">
-                          이름
-                        </label>
+                        <label className="block text-sm font-medium mb-2 text-gray-300">제목</label>
                         <input
                           type="text"
-                          id="name"
-                          name="name"
+                          name="title"
+                          value={formData.title}
+                          onChange={(e) => handleInputChange(e)}
                           className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          value={formData.name}
-                          onChange={handleChange}
                           required
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300" htmlFor="email">
-                          이메일
-                        </label>
-                        <input
-                          type="email"
-                          id="email"
-                          name="email"
-                          className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          value={formData.email}
-                          onChange={handleChange}
+                        <label className="block text-sm font-medium mb-2 text-gray-300">내용</label>
+                        <textarea
+                          name="content"
+                          value={formData.content}
+                          onChange={(e) => handleInputChange(e)}
+                          className="form-textarea w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                          rows="4"
                           required
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300" htmlFor="phone">
-                          연락처
-                        </label>
-                        <input
-                          type="tel"
-                          id="phone"
-                          name="phone"
-                          className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          value={formData.phone}
-                          onChange={handleChange}
+                        <label className="block text-sm font-medium mb-2 text-gray-300">목표</label>
+                        <textarea
+                          name="objective"
+                          value={formData.objective}
+                          onChange={(e) => handleInputChange(e)}
+                          className="form-textarea w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                          rows="2"
                           required
                         />
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300" htmlFor="github">
-                          GitHub
-                        </label>
-                        <input
-                          type="url"
-                          id="github"
-                          name="github"
-                          className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          value={formData.github}
-                          onChange={handleChange}
-                          placeholder="https://github.com/username"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300" htmlFor="blog">
-                          블로그/포트폴리오
-                        </label>
-                        <input
-                          type="url"
-                          id="blog"
-                          name="blog"
-                          className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          value={formData.blog}
-                          onChange={handleChange}
-                          placeholder="https://blog.com"
-                        />
-                      </div>
                     </div>
                   </div>
 
-                  {/* 학력 섹션 */}
+                  {/* 기술 스택 */}
                   <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 shadow-lg">
                     <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-xl font-medium text-white">학력</h2>
+                      <h2 className="text-xl font-medium text-white">기술 스택</h2>
                       <button
                         type="button"
-                        onClick={addEducation}
+                        onClick={addSkill}
                         className="btn-sm text-white bg-purple-600 hover:bg-purple-700"
                       >
-                        + 학력 추가
+                        + 기술 추가
                       </button>
                     </div>
-                    
-                    {formData.educations.map((education, index) => (
-                      <div key={education.id} className="mb-6 last:mb-0">
-                        <div className="flex justify-between items-center mb-3">
-                          <h3 className="text-lg font-medium text-gray-300">학력 {index + 1}</h3>
-                          {formData.educations.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeEducation(education.id)}
-                              className="text-gray-400 hover:text-red-400"
-                            >
-                              삭제
-                            </button>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              학교 종류
-                            </label>
-                            <select
-                              className="form-select w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              value={education.schoolType}
-                              onChange={(e) => handleEducationChange(education.id, 'schoolType', e.target.value)}
-                            >
-                              <option value="">선택해주세요</option>
-                              {getSchoolTypeOptions().map(option => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              학교명
-                            </label>
-                            <input
-                              type="text"
-                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              placeholder="학교명을 입력해주세요"
-                              value={education.schoolName}
-                              onChange={(e) => handleEducationChange(education.id, 'schoolName', e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              지역
-                            </label>
-                            <input
-                              type="text"
-                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              placeholder="학교 위치 (예: 서울시 강남구)"
-                              value={education.location}
-                              onChange={(e) => handleEducationChange(education.id, 'location', e.target.value)}
-                            />
-                          </div>
-                          {education.schoolType !== 'high' && (
-                            <div>
-                              <label className="block text-sm font-medium mb-2 text-gray-300">
-                                전공
-                              </label>
-                              <input
-                                type="text"
-                                className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                                placeholder="전공을 입력해주세요"
-                                value={education.major}
-                                onChange={(e) => handleEducationChange(education.id, 'major', e.target.value)}
-                              />
-                            </div>
-                          )}
-                          {getDegreeOptions(education.schoolType).length > 0 && (
-                            <div>
-                              <label className="block text-sm font-medium mb-2 text-gray-300">
-                                학위
-                              </label>
-                              <select
-                                className="form-select w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                                value={education.degree}
-                                onChange={(e) => handleEducationChange(education.id, 'degree', e.target.value)}
-                              >
-                                <option value="">선택해주세요</option>
-                                {getDegreeOptions(education.schoolType).map(option => (
-                                  <option key={option.value} value={option.value}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-                          <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              입학일
-                            </label>
-                            <input
-                              type="date"
-                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              value={education.startDate}
-                              onChange={(e) => handleEducationChange(education.id, 'startDate', e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              {education.isGraduated ? '졸업일' : '재학중'}
-                            </label>
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="date"
-                                className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                                value={education.endDate}
-                                onChange={(e) => handleEducationChange(education.id, 'endDate', e.target.value)}
-                                disabled={!education.isGraduated}
-                              />
-                              <label className="flex items-center space-x-2 text-gray-300">
-                                <input
-                                  type="checkbox"
-                                  className="form-checkbox bg-gray-700/50 border-gray-600 text-purple-500 focus:ring-purple-500"
-                                  checked={!education.isGraduated}
-                                  onChange={(e) => handleEducationChange(education.id, 'isGraduated', !e.target.checked)}
-                                />
-                                <span className="text-sm">재학중</span>
-                              </label>
-                            </div>
-                          </div>
-                          {education.schoolType !== 'high' && (
-                            <div>
-                              <label className="block text-sm font-medium mb-2 text-gray-300">
-                                학점
-                              </label>
-                              <input
-                                type="text"
-                                className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                                placeholder="학점을 입력해주세요 (예: 4.0/4.5)"
-                                value={education.gpa}
-                                onChange={(e) => handleEducationChange(education.id, 'gpa', e.target.value)}
-                              />
-                            </div>
-                          )}
-                        </div>
+                    {formData.skills.map((skill, index) => (
+                      <div key={index} className="flex gap-2 mb-2">
+                        <input
+                          type="text"
+                          value={skill}
+                          onChange={(e) => handleInputChange(e, 'skills', index)}
+                          className="form-input flex-1 bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeSkill(index)}
+                          className="btn-sm text-white bg-gray-600 hover:bg-gray-700"
+                        >
+                          삭제
+                        </button>
                       </div>
                     ))}
                   </div>
 
-                  {/* 경력 섹션 */}
-                  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 shadow-lg">
-                    <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-xl font-medium text-white">경력</h2>
-                      <button
-                        type="button"
-                        onClick={addExperience}
-                        className="btn-sm text-white bg-purple-600 hover:bg-purple-700"
-                      >
-                        + 경력 추가
-                      </button>
-                    </div>
-                    
-                    {formData.experiences.map((experience, index) => (
-                      <div key={experience.id} className="mb-6 last:mb-0">
-                        <div className="flex justify-between items-center mb-3">
-                          <h3 className="text-lg font-medium text-gray-300">경력 {index + 1}</h3>
-                          {formData.experiences.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeExperience(experience.id)}
-                              className="text-gray-400 hover:text-red-400"
-                            >
-                              삭제
-                            </button>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              회사명
-                            </label>
-                            <input
-                              type="text"
-                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              placeholder="회사명을 입력해주세요"
-                              value={experience.companyName}
-                              onChange={(e) => handleExperienceChange(experience.id, 'companyName', e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              직무
-                            </label>
-                            <input
-                              type="text"
-                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              placeholder="담당 직무를 입력해주세요"
-                              value={experience.position}
-                              onChange={(e) => handleExperienceChange(experience.id, 'position', e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              근무지
-                            </label>
-                            <input
-                              type="text"
-                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              placeholder="근무지역을 입력해주세요"
-                              value={experience.location}
-                              onChange={(e) => handleExperienceChange(experience.id, 'location', e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              입사일
-                            </label>
-                            <input
-                              type="date"
-                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              value={experience.startDate}
-                              onChange={(e) => handleExperienceChange(experience.id, 'startDate', e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              {experience.isCurrent ? '재직중' : '퇴사일'}
-                            </label>
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="date"
-                                className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                                value={experience.endDate}
-                                onChange={(e) => handleExperienceChange(experience.id, 'endDate', e.target.value)}
-                                disabled={experience.isCurrent}
-                              />
-                              <label className="flex items-center space-x-2 text-gray-300">
-                                <input
-                                  type="checkbox"
-                                  className="form-checkbox bg-gray-700/50 border-gray-600 text-purple-500 focus:ring-purple-500"
-                                  checked={experience.isCurrent}
-                                  onChange={(e) => handleExperienceChange(experience.id, 'isCurrent', e.target.checked)}
-                                />
-                                <span className="text-sm">재직중</span>
-                              </label>
-                            </div>
-                          </div>
-                          <div className="md:col-span-2">
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              주요 업무
-                            </label>
-                            <textarea
-                              className="form-textarea w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              rows="3"
-                              placeholder="담당했던 주요 업무를 입력해주세요"
-                              value={experience.description}
-                              onChange={(e) => handleExperienceChange(experience.id, 'description', e.target.value)}
-                            />
-                          </div>
-                          <div className="md:col-span-2">
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              주요 성과
-                            </label>
-                            <textarea
-                              className="form-textarea w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              rows="3"
-                              placeholder="주요 성과나 기여도를 입력해주세요"
-                              value={experience.achievements}
-                              onChange={(e) => handleExperienceChange(experience.id, 'achievements', e.target.value)}
-                            />
-                          </div>
-                          <div className="md:col-span-2">
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              사용 기술
-                            </label>
-                            <input
-                              type="text"
-                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              placeholder="사용한 기술 스택을 입력해주세요 (쉼표로 구분)"
-                              value={experience.skills}
-                              onChange={(e) => handleExperienceChange(experience.id, 'skills', e.target.value)}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* 기술 스택 섹션 */}
-                  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 shadow-lg">
-                    <h2 className="text-xl font-medium mb-4 text-white">기술 스택</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300">
-                          프로그래밍 언어
-                        </label>
-                        <input
-                          type="text"
-                          className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          placeholder="사용 가능한 프로그래밍 언어 (쉼표로 구분)"
-                          value={formData.skills.languages.join(', ')}
-                          onChange={(e) => handleSkillChange('languages', e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300">
-                          프레임워크/라이브러리
-                        </label>
-                        <input
-                          type="text"
-                          className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          placeholder="사용 가능한 프레임워크/라이브러리 (쉼표로 구분)"
-                          value={formData.skills.frameworks.join(', ')}
-                          onChange={(e) => handleSkillChange('frameworks', e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300">
-                          데이터베이스
-                        </label>
-                        <input
-                          type="text"
-                          className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          placeholder="사용 가능한 데이터베이스 (쉼표로 구분)"
-                          value={formData.skills.databases.join(', ')}
-                          onChange={(e) => handleSkillChange('databases', e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300">
-                          클라우드/인프라
-                        </label>
-                        <input
-                          type="text"
-                          className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          placeholder="사용 가능한 클라우드/인프라 (쉼표로 구분)"
-                          value={formData.skills.cloud.join(', ')}
-                          onChange={(e) => handleSkillChange('cloud', e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300">
-                          개발 도구
-                        </label>
-                        <input
-                          type="text"
-                          className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          placeholder="사용 가능한 개발 도구 (쉼표로 구분)"
-                          value={formData.skills.tools.join(', ')}
-                          onChange={(e) => handleSkillChange('tools', e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300">
-                          기타 기술
-                        </label>
-                        <input
-                          type="text"
-                          className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          placeholder="기타 보유 기술 (쉼표로 구분)"
-                          value={formData.skills.others.join(', ')}
-                          onChange={(e) => handleSkillChange('others', e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 자격증 섹션 */}
-                  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 shadow-lg">
-                    <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-xl font-medium text-white">자격증</h2>
-                      <button
-                        type="button"
-                        onClick={addCertificate}
-                        className="btn-sm text-white bg-purple-600 hover:bg-purple-700"
-                      >
-                        + 자격증 추가
-                      </button>
-                    </div>
-                    
-                    {formData.certificates.map((certificate, index) => (
-                      <div key={certificate.id} className="mb-6 last:mb-0">
-                        <div className="flex justify-between items-center mb-3">
-                          <h3 className="text-lg font-medium text-gray-300">자격증 {index + 1}</h3>
-                          {formData.certificates.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeCertificate(certificate.id)}
-                              className="text-gray-400 hover:text-red-400"
-                            >
-                              삭제
-                            </button>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              자격증명
-                            </label>
-                            <input
-                              type="text"
-                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              placeholder="자격증명을 입력해주세요"
-                              value={certificate.name}
-                              onChange={(e) => handleCertificateChange(certificate.id, 'name', e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              발행처
-                            </label>
-                            <input
-                              type="text"
-                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              placeholder="자격증 발행처를 입력해주세요"
-                              value={certificate.issuer}
-                              onChange={(e) => handleCertificateChange(certificate.id, 'issuer', e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              취득일
-                            </label>
-                            <input
-                              type="date"
-                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              value={certificate.date}
-                              onChange={(e) => handleCertificateChange(certificate.id, 'date', e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              {certificate.isExpired ? '만료일' : '유효기간'}
-                            </label>
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="date"
-                                className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                                value={certificate.expiryDate}
-                                onChange={(e) => handleCertificateChange(certificate.id, 'expiryDate', e.target.value)}
-                                disabled={!certificate.isExpired}
-                              />
-                              <label className="flex items-center space-x-2 text-gray-300">
-                                <input
-                                  type="checkbox"
-                                  className="form-checkbox bg-gray-700/50 border-gray-600 text-purple-500 focus:ring-purple-500"
-                                  checked={certificate.isExpired}
-                                  onChange={(e) => handleCertificateChange(certificate.id, 'isExpired', e.target.checked)}
-                                />
-                                <span className="text-sm">만료됨</span>
-                              </label>
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              자격증 번호
-                            </label>
-                            <input
-                              type="text"
-                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              placeholder="자격증 번호를 입력해주세요"
-                              value={certificate.credentialId}
-                              onChange={(e) => handleCertificateChange(certificate.id, 'credentialId', e.target.value)}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* 프로젝트 섹션 */}
+                  {/* 프로젝트 */}
                   <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 shadow-lg">
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="text-xl font-medium text-white">프로젝트</h2>
                       <button
                         type="button"
-                        onClick={addProject}
+                        onClick={() => addArrayItem('projects')}
                         className="btn-sm text-white bg-purple-600 hover:bg-purple-700"
                       >
                         + 프로젝트 추가
                       </button>
                     </div>
-                    
                     {formData.projects.map((project, index) => (
-                      <div key={project.id} className="mb-6 last:mb-0">
+                      <div key={index} className="mb-6 last:mb-0">
                         <div className="flex justify-between items-center mb-3">
                           <h3 className="text-lg font-medium text-gray-300">프로젝트 {index + 1}</h3>
-                          {formData.projects.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeProject(project.id)}
-                              className="text-gray-400 hover:text-red-400"
-                            >
-                              삭제
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeArrayItem('projects', index)}
+                            className="text-gray-400 hover:text-white"
+                          >
+                            삭제
+                          </button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              프로젝트명
-                            </label>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">프로젝트명</label>
                             <input
                               type="text"
+                              name="projectName"
+                              value={project.projectName}
+                              onChange={(e) => handleInputChange(e, 'projects', index)}
                               className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              placeholder="프로젝트명을 입력해주세요"
-                              value={project.name}
-                              onChange={(e) => handleProjectChange(project.id, 'name', e.target.value)}
+                              required
                             />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              역할
-                            </label>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">설명</label>
                             <input
                               type="text"
+                              name="description"
+                              value={project.description}
+                              onChange={(e) => handleInputChange(e, 'projects', index)}
                               className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              placeholder="프로젝트에서의 역할을 입력해주세요"
-                              value={project.role}
-                              onChange={(e) => handleProjectChange(project.id, 'role', e.target.value)}
+                              required
                             />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              시작일
-                            </label>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">시작일</label>
                             <input
                               type="date"
-                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                              name="startDate"
                               value={project.startDate}
-                              onChange={(e) => handleProjectChange(project.id, 'startDate', e.target.value)}
+                              onChange={(e) => handleInputChange(e, 'projects', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                              required
                             />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              {project.isCurrent ? '진행중' : '종료일'}
-                            </label>
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="date"
-                                className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                                value={project.endDate}
-                                onChange={(e) => handleProjectChange(project.id, 'endDate', e.target.value)}
-                                disabled={project.isCurrent}
-                              />
-                              <label className="flex items-center space-x-2 text-gray-300">
-                                <input
-                                  type="checkbox"
-                                  className="form-checkbox bg-gray-700/50 border-gray-600 text-purple-500 focus:ring-purple-500"
-                                  checked={project.isCurrent}
-                                  onChange={(e) => handleProjectChange(project.id, 'isCurrent', e.target.checked)}
-                                />
-                                <span className="text-sm">진행중</span>
-                              </label>
-                            </div>
-                          </div>
-                          <div className="md:col-span-2">
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              프로젝트 설명
-                            </label>
-                            <textarea
-                              className="form-textarea w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              rows="3"
-                              placeholder="프로젝트에 대한 설명을 입력해주세요"
-                              value={project.description}
-                              onChange={(e) => handleProjectChange(project.id, 'description', e.target.value)}
-                            />
-                          </div>
-                          <div className="md:col-span-2">
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              사용 기술
-                            </label>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">종료일</label>
                             <input
-                              type="text"
+                              type="date"
+                              name="endDate"
+                              value={project.endDate}
+                              onChange={(e) => handleInputChange(e, 'projects', index)}
                               className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              placeholder="사용한 기술 스택을 입력해주세요 (쉼표로 구분)"
-                              value={project.technologies}
-                              onChange={(e) => handleProjectChange(project.id, 'technologies', e.target.value)}
+                              disabled={project.inProgress}
                             />
                           </div>
-                          <div className="md:col-span-2">
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              주요 성과
-                            </label>
-                            <textarea
-                              className="form-textarea w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              rows="3"
-                              placeholder="프로젝트의 주요 성과를 입력해주세요"
-                              value={project.achievements}
-                              onChange={(e) => handleProjectChange(project.id, 'achievements', e.target.value)}
-                            />
-                          </div>
-                          <div className="md:col-span-2">
-                            <label className="block text-sm font-medium mb-2 text-gray-300">
-                              프로젝트 링크
-                            </label>
+                        </div>
+                        <div className="mt-4">
+                          <label className="flex items-center space-x-2 text-gray-300">
                             <input
-                              type="url"
-                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                              placeholder="GitHub, 배포 URL 등을 입력해주세요"
-                              value={project.link}
-                              onChange={(e) => handleProjectChange(project.id, 'link', e.target.value)}
+                              type="checkbox"
+                              name="inProgress"
+                              checked={project.inProgress}
+                              onChange={(e) => handleInputChange(e, 'projects', index)}
+                              className="form-checkbox bg-gray-700/50 border-gray-600 text-purple-500 focus:ring-purple-500"
                             />
-                          </div>
+                            <span className="text-sm">진행 중</span>
+                          </label>
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  {/* 자기소개 섹션 */}
+                  {/* 자격증 */}
                   <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 shadow-lg">
-                    <h2 className="text-xl font-medium mb-4 text-white">자기소개</h2>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300">
-                          지원 동기
-                        </label>
-                        <textarea
-                          className="form-textarea w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          rows="3"
-                          placeholder="지원 동기를 입력해주세요"
-                          value={formData.introduction.motivation}
-                          onChange={(e) => handleIntroductionChange('motivation', e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300">
-                          목표
-                        </label>
-                        <textarea
-                          className="form-textarea w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          rows="3"
-                          placeholder="향후 목표를 입력해주세요"
-                          value={formData.introduction.goals}
-                          onChange={(e) => handleIntroductionChange('goals', e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300">
-                          강점
-                        </label>
-                        <textarea
-                          className="form-textarea w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          rows="3"
-                          placeholder="본인의 강점을 입력해주세요"
-                          value={formData.introduction.strengths}
-                          onChange={(e) => handleIntroductionChange('strengths', e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300">
-                          성격/특징
-                        </label>
-                        <textarea
-                          className="form-textarea w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          rows="3"
-                          placeholder="본인의 성격이나 특징을 입력해주세요"
-                          value={formData.introduction.personality}
-                          onChange={(e) => handleIntroductionChange('personality', e.target.value)}
-                        />
-                      </div>
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-xl font-medium text-white">자격증</h2>
+                      <button
+                        type="button"
+                        onClick={() => addArrayItem('certifications')}
+                        className="btn-sm text-white bg-purple-600 hover:bg-purple-700"
+                      >
+                        + 자격증 추가
+                      </button>
                     </div>
+                    {formData.certifications.map((cert, index) => (
+                      <div key={index} className="mb-6 last:mb-0">
+                        <div className="flex justify-between items-center mb-3">
+                          <h3 className="text-lg font-medium text-gray-300">자격증 {index + 1}</h3>
+                          <button
+                            type="button"
+                            onClick={() => removeArrayItem('certifications', index)}
+                            className="text-gray-400 hover:text-white"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">자격증명</label>
+                            <input
+                              type="text"
+                              name="certificationName"
+                              value={cert.certificationName}
+                              onChange={(e) => handleInputChange(e, 'certifications', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">발급기관</label>
+                            <input
+                              type="text"
+                              name="issuingOrganization"
+                              value={cert.issuingOrganization}
+                              onChange={(e) => handleInputChange(e, 'certifications', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">취득일</label>
+                            <input
+                              type="date"
+                              name="acquiredDate"
+                              value={cert.acquiredDate}
+                              onChange={(e) => handleInputChange(e, 'certifications', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">만료일</label>
+                            <input
+                              type="date"
+                              name="expiryDate"
+                              value={cert.expiryDate}
+                              onChange={(e) => handleInputChange(e, 'certifications', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                              disabled={cert.noExpiry}
+                            />
+                          </div>
+                        </div>
+                        <div className="mt-4">
+                          <label className="flex items-center space-x-2 text-gray-300">
+                            <input
+                              type="checkbox"
+                              name="noExpiry"
+                              checked={cert.noExpiry}
+                              onChange={(e) => handleInputChange(e, 'certifications', index)}
+                              className="form-checkbox bg-gray-700/50 border-gray-600 text-purple-500 focus:ring-purple-500"
+                            />
+                            <span className="text-sm">만료일 없음</span>
+                          </label>
+                        </div>
+                      </div>
+                    ))}
                   </div>
 
-                  {/* 버튼 영역 */}
+                  {/* 경력사항 */}
+                  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 shadow-lg">
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-xl font-medium text-white">경력사항</h2>
+                      <button
+                        type="button"
+                        onClick={() => addArrayItem('workExperiences')}
+                        className="btn-sm text-white bg-purple-600 hover:bg-purple-700"
+                      >
+                        + 경력 추가
+                      </button>
+                    </div>
+                    {formData.workExperiences.map((work, index) => (
+                      <div key={index} className="mb-6 last:mb-0">
+                        <div className="flex justify-between items-center mb-3">
+                          <h3 className="text-lg font-medium text-gray-300">경력 {index + 1}</h3>
+                          <button
+                            type="button"
+                            onClick={() => removeArrayItem('workExperiences', index)}
+                            className="text-gray-400 hover:text-white"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">회사명</label>
+                            <input
+                              type="text"
+                              name="companyName"
+                              value={work.companyName}
+                              onChange={(e) => handleInputChange(e, 'workExperiences', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">직위</label>
+                            <input
+                              type="text"
+                              name="position"
+                              value={work.position}
+                              onChange={(e) => handleInputChange(e, 'workExperiences', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">부서</label>
+                            <input
+                              type="text"
+                              name="department"
+                              value={work.department}
+                              onChange={(e) => handleInputChange(e, 'workExperiences', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">근무지</label>
+                            <input
+                              type="text"
+                              name="location"
+                              value={work.location}
+                              onChange={(e) => handleInputChange(e, 'workExperiences', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">시작일</label>
+                            <input
+                              type="date"
+                              name="startDate"
+                              value={work.startDate}
+                              onChange={(e) => handleInputChange(e, 'workExperiences', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">종료일</label>
+                            <input
+                              type="date"
+                              name="endDate"
+                              value={work.endDate}
+                              onChange={(e) => handleInputChange(e, 'workExperiences', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                              disabled={work.currentlyWorking}
+                            />
+                          </div>
+                        </div>
+                        <div className="mt-4">
+                          <label className="flex items-center space-x-2 text-gray-300">
+                            <input
+                              type="checkbox"
+                              name="currentlyWorking"
+                              checked={work.currentlyWorking}
+                              onChange={(e) => handleInputChange(e, 'workExperiences', index)}
+                              className="form-checkbox bg-gray-700/50 border-gray-600 text-purple-500 focus:ring-purple-500"
+                            />
+                            <span className="text-sm">현재 근무 중</span>
+                          </label>
+                        </div>
+                        <div className="mt-4">
+                          <label className="block text-sm font-medium mb-2 text-gray-300">주요 업무</label>
+                          <textarea
+                            name="responsibilities"
+                            value={work.responsibilities}
+                            onChange={(e) => handleInputChange(e, 'workExperiences', index)}
+                            className="form-textarea w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                            rows="3"
+                            required
+                          />
+                        </div>
+                        <div className="mt-4">
+                          <label className="block text-sm font-medium mb-2 text-gray-300">주요 성과</label>
+                          <textarea
+                            name="achievements"
+                            value={work.achievements}
+                            onChange={(e) => handleInputChange(e, 'workExperiences', index)}
+                            className="form-textarea w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                            rows="3"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 학력사항 */}
+                  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 shadow-lg">
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-xl font-medium text-white">학력사항</h2>
+                      <button
+                        type="button"
+                        onClick={() => addArrayItem('educations')}
+                        className="btn-sm text-white bg-purple-600 hover:bg-purple-700"
+                      >
+                        + 학력 추가
+                      </button>
+                    </div>
+                    {formData.educations.map((edu, index) => (
+                      <div key={index} className="mb-6 last:mb-0">
+                        <div className="flex justify-between items-center mb-3">
+                          <h3 className="text-lg font-medium text-gray-300">학력 {index + 1}</h3>
+                          <button
+                            type="button"
+                            onClick={() => removeArrayItem('educations', index)}
+                            className="text-gray-400 hover:text-white"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">학교 구분</label>
+                            <select
+                              name="schoolType"
+                              value={edu.schoolType}
+                              onChange={(e) => handleInputChange(e, 'educations', index)}
+                              className="form-select w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                              required
+                            >
+                              <option value="">선택하세요</option>
+                              <option value="고등학교">고등학교</option>
+                              <option value="전문대학">전문대학</option>
+                              <option value="대학교">대학교</option>
+                              <option value="대학원">대학원</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">학교명</label>
+                            <input
+                              type="text"
+                              name="schoolName"
+                              value={edu.schoolName}
+                              onChange={(e) => handleInputChange(e, 'educations', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">위치</label>
+                            <input
+                              type="text"
+                              name="location"
+                              value={edu.location}
+                              onChange={(e) => handleInputChange(e, 'educations', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">전공</label>
+                            <input
+                              type="text"
+                              name="major"
+                              value={edu.major}
+                              onChange={(e) => handleInputChange(e, 'educations', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">입학일</label>
+                            <input
+                              type="date"
+                              name="enrollmentDate"
+                              value={edu.enrollmentDate}
+                              onChange={(e) => handleInputChange(e, 'educations', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">졸업일</label>
+                            <input
+                              type="date"
+                              name="graduationDate"
+                              value={edu.graduationDate}
+                              onChange={(e) => handleInputChange(e, 'educations', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                              disabled={edu.inProgress}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2 text-gray-300">학점</label>
+                            <input
+                              type="text"
+                              name="gpa"
+                              value={edu.gpa}
+                              onChange={(e) => handleInputChange(e, 'educations', index)}
+                              className="form-input w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
+                              placeholder="예: 4.0/4.5"
+                            />
+                          </div>
+                        </div>
+                        <div className="mt-4">
+                          <label className="flex items-center space-x-2 text-gray-300">
+                            <input
+                              type="checkbox"
+                              name="inProgress"
+                              checked={edu.inProgress}
+                              onChange={(e) => handleInputChange(e, 'educations', index)}
+                              className="form-checkbox bg-gray-700/50 border-gray-600 text-purple-500 focus:ring-purple-500"
+                            />
+                            <span className="text-sm">재학 중</span>
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
                   <div className="flex justify-end space-x-4">
-                    <button
-                      type="button"
-                      className="btn text-gray-300 bg-gray-700/50 hover:bg-gray-700 border border-gray-600"
-                      onClick={() => {
-                        // TODO: 임시 저장 기능 구현
-                        console.log('임시 저장');
-                      }}
-                    >
-                      임시 저장
-                    </button>
                     <button
                       type="submit"
                       className="btn text-white bg-purple-600 hover:bg-purple-700"
                     >
-                      저장하기
+                      이력서 제출
                     </button>
                   </div>
                 </form>
@@ -1087,4 +790,4 @@ function Resume() {
   );
 }
 
-export default Resume; 
+export default Resume;

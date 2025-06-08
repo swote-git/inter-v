@@ -12,6 +12,7 @@ function SignIn() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userId, setUserId] = useState('');
   const [showLogout, setShowLogout] = useState(false);
+  const [token, setToken] = useState('');
   const navigate = useNavigate();
   const userRef = useRef(null);
 
@@ -22,6 +23,7 @@ function SignIn() {
     if (token && storedUserId) {
       setIsLoggedIn(true);
       setUserId(storedUserId);
+      setToken(token);
     }
   }, []);
 
@@ -54,16 +56,25 @@ function SignIn() {
       if (!res.ok) throw new Error('로그인 실패');
 
       const data = await res.json();
+      console.log('로그인 응답 전체 데이터:', data);  // 전체 응답 데이터 확인
+      console.log('로그인 응답 data 필드:', data.data);  // data 필드 확인
+
+      const loginData = data.data; // ← 실제 로그인 정보
+      console.log('loginData 구조:', loginData);  // loginData 구조 확인
 
       // 토큰, 사용자 ID, 이메일 저장
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('userId', data.userId);
+      localStorage.setItem('token', loginData.accessToken);
+      localStorage.setItem('userId', loginData.user.id);
       localStorage.setItem('userEmail', email);
 
+      console.log('localStorage에서 id:', localStorage.getItem('token'));
+      console.log('localStorage에서 token:', localStorage.getItem('token'));  // 저장 후 확인
+
       setIsLoggedIn(true);
-      setUserId(data.userId);
+      setUserId(loginData.user.id);
       setError('');
-      navigate('/');
+      // 로그인 성공 후
+      navigate('/'); // 메인 화면으로 이동
     } catch (err) {
       setError('이메일 또는 비밀번호가 올바르지 않습니다.');
     }
@@ -160,7 +171,7 @@ function SignIn() {
                             <input type="checkbox" className="form-checkbox" />
                             <span className="text-gray-400 ml-2">로그인 유지</span>
                           </label>
-                          <Link to="/reset-password" className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">Forgot Password?</Link>
+
                         </div>
                       </div>
                     </div>
