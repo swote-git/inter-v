@@ -22,7 +22,7 @@ public class UserController {
     @PostMapping("/register")
     public ResponseEntity<CommonResponse<User>> register(@Valid @RequestBody RegisterVO registerVO) {
         User user = userService.register(registerVO);
-        return ResponseEntity.status(HttpStatus.CREATED)
+        return ResponseEntity.status(HttpStatus.OK)
                 .body(CommonResponse.ok(user));
     }
 

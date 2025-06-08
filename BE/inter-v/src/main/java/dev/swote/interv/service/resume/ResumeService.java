@@ -4,6 +4,8 @@ import dev.swote.interv.domain.resume.entity.*;
 import dev.swote.interv.domain.resume.repository.*;
 import dev.swote.interv.domain.user.entity.User;
 import dev.swote.interv.domain.user.repository.UserRepository;
+import dev.swote.interv.exception.ResourceNotFoundException;
+import dev.swote.interv.exception.UserNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,27 +34,27 @@ public class ResumeService {
     @Transactional(readOnly = true)
     public List<Resume> getUserResumes(Integer userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
         return resumeRepository.findByUser(user);
     }
 
     @Transactional(readOnly = true)
     public Page<Resume> getUserResumes(Integer userId, Pageable pageable) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
         return resumeRepository.findByUser(user, pageable);
     }
 
     @Transactional(readOnly = true)
     public Resume getResumeById(Integer resumeId) {
         return resumeRepository.findById(resumeId)
-                .orElseThrow(() -> new RuntimeException("Resume not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Resume not found"));
     }
 
     @Transactional
     public Resume createResume(Integer userId, CreateResumeRequest request) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
 
         Resume resume = Resume.builder()
                 .user(user)
@@ -138,7 +140,7 @@ public class ResumeService {
     @Transactional
     public Resume uploadResumeFile(Integer userId, MultipartFile file, String title) throws IOException {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
         // TODO(FIX IT)
 
         String content = resumeFileService.extractContent(file);
@@ -158,7 +160,7 @@ public class ResumeService {
     @Transactional
     public Resume updateResume(Integer resumeId, UpdateResumeRequest request) {
         Resume resume = resumeRepository.findById(resumeId)
-                .orElseThrow(() -> new RuntimeException("Resume not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Resume not found"));
 
         resume.setTitle(request.getTitle());
         resume.setContent(request.getContent());
@@ -265,7 +267,7 @@ public class ResumeService {
     @Transactional
     public void deleteResume(Integer resumeId) {
         Resume resume = resumeRepository.findById(resumeId)
-                .orElseThrow(() -> new RuntimeException("Resume not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Resume not found"));
 
         resume.delete();
         resumeRepository.save(resume);

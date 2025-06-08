@@ -4,6 +4,7 @@ import dev.swote.interv.domain.company.entity.Company;
 import dev.swote.interv.domain.company.repository.CompanyRepository;
 import dev.swote.interv.domain.position.entity.Position;
 import dev.swote.interv.domain.position.repository.PositionRepository;
+import dev.swote.interv.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,7 +33,7 @@ public class CompanyService {
     @Transactional(readOnly = true)
     public Company getCompanyById(Integer companyId) {
         return companyRepository.findById(companyId)
-                .orElseThrow(() -> new RuntimeException("Company not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Company not found"));
     }
 
     @Transactional
@@ -49,7 +50,7 @@ public class CompanyService {
     @Transactional(readOnly = true)
     public List<Position> getCompanyPositions(Integer companyId) {
         Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new RuntimeException("Company not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Company not found"));
 
         return positionRepository.findByCompany(company);
     }
@@ -62,13 +63,13 @@ public class CompanyService {
     @Transactional(readOnly = true)
     public Position getPositionById(Integer positionId) {
         return positionRepository.findById(positionId)
-                .orElseThrow(() -> new RuntimeException("Position not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Position not found"));
     }
 
     @Transactional
     public Position createPosition(Integer companyId, String title, String description, List<String> requiredSkills) {
         Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new RuntimeException("Company not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Company not found"));
 
         Set<String> skills = new HashSet<>(requiredSkills);
 
