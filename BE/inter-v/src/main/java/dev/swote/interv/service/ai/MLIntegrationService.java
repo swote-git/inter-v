@@ -4,6 +4,7 @@ import dev.swote.interv.domain.interview.entity.AnswerEvaluation;
 import dev.swote.interv.domain.interview.entity.Question;
 import dev.swote.interv.domain.interview.DTO.InterviewSimulationResult;
 import dev.swote.interv.domain.interview.entity.QuestionType;
+import dev.swote.interv.exception.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,30 +60,28 @@ public class MLIntegrationService {
             );
 
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                List<Map<String, Object>> questionsData = (List<Map<String, Object>>) response.getBody().get("questions");
-
-                List<Question> questions = new ArrayList<>();
-                for (Map<String, Object> questionData : questionsData) {
-                    Question question = convertToQuestion(questionData);
-                    questions.add(question);
-                }
-
-                log.info("ML API 질문 생성 성공 - {} 개 질문 생성됨", questions.size());
-                return questions;
+                return processQuestionResponse(response.getBody());
             }
 
             log.warn("ML API 응답이 비어있음");
             return generateFallbackQuestions(position, questionCount);
 
-        } catch (HttpClientErrorException | HttpServerErrorException e) {
-            log.error("ML API 호출 실패 - HTTP 오류: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            return generateFallbackQuestions(position, questionCount);
         } catch (ResourceAccessException e) {
-            log.error("ML API 연결 실패 - 네트워크 오류: {}", e.getMessage());
+            log.error("ML API 연결 실패 - 네트워크 오류: {}", e.getMessage(), e);
+            // 폴백으로 처리하지만 연결 실패 로그는 남김
             return generateFallbackQuestions(position, questionCount);
+        } catch (HttpClientErrorException e) {
+            log.error("ML API 호출 실패 - 클라이언트 오류: {} - {}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            throw new MLBadRequestException();
+        } catch (HttpServerErrorException e) {
+            log.error("ML API 호출 실패 - 서버 오류: {} - {}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            throw new MLServerErrorException();
+        } catch (MLResponseParsingException e) {
+            // 이미 적절한 예외이므로 재던지기
+            throw e;
         } catch (Exception e) {
             log.error("ML API 호출 중 예상치 못한 오류", e);
-            return generateFallbackQuestions(position, questionCount);
+            throw new QuestionGenerationException();
         }
     }
 
@@ -120,8 +119,17 @@ public class MLIntegrationService {
             log.warn("ML API 평가 응답이 비어있음");
             return generateFallbackEvaluation();
 
+        } catch (ResourceAccessException e) {
+            log.error("답변 평가 중 연결 실패: {}", e.getMessage(), e);
+            return generateFallbackEvaluation();
+        } catch (HttpClientErrorException e) {
+            log.error("답변 평가 중 클라이언트 오류: {} - {}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            return generateFallbackEvaluation();
+        } catch (HttpServerErrorException e) {
+            log.error("답변 평가 중 서버 오류: {} - {}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            return generateFallbackEvaluation();
         } catch (Exception e) {
-            log.error("ML API 답변 평가 중 오류", e);
+            log.error("ML API 답변 평가 중 예상치 못한 오류", e);
             return generateFallbackEvaluation();
         }
     }
@@ -129,7 +137,7 @@ public class MLIntegrationService {
     /**
      * ML API를 통한 키워드 유사도 계산
      */
-    public Map calculateKeywordSimilarity(String resumeContent, String coverLetter, String question) {
+    public Map<String, Object> calculateKeywordSimilarity(String resumeContent, String coverLetter, String question) {
         try {
             log.info("ML API 키워드 유사도 계산 요청");
 
@@ -153,11 +161,17 @@ public class MLIntegrationService {
                 return response.getBody();
             }
 
-            return Map.of("matched_keywords", List.of(), "keyword_match_score", 0.0);
+            return getDefaultSimilarityResult();
 
+        } catch (ResourceAccessException e) {
+            log.error("키워드 유사도 계산 중 연결 실패: {}", e.getMessage(), e);
+            return getDefaultSimilarityResult();
+        } catch (HttpClientErrorException | HttpServerErrorException e) {
+            log.error("키워드 유사도 계산 중 HTTP 오류: {} - {}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            return getDefaultSimilarityResult();
         } catch (Exception e) {
-            log.error("키워드 유사도 계산 중 오류", e);
-            return Map.of("matched_keywords", List.of(), "keyword_match_score", 0.0);
+            log.error("키워드 유사도 계산 중 예상치 못한 오류", e);
+            return getDefaultSimilarityResult();
         }
     }
 
@@ -190,8 +204,14 @@ public class MLIntegrationService {
 
             return Map.of("similarity_score", 0.0);
 
+        } catch (ResourceAccessException e) {
+            log.error("의미론적 유사도 계산 중 연결 실패: {}", e.getMessage(), e);
+            return Map.of("similarity_score", 0.0);
+        } catch (HttpClientErrorException | HttpServerErrorException e) {
+            log.error("의미론적 유사도 계산 중 HTTP 오류: {} - {}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            return Map.of("similarity_score", 0.0);
         } catch (Exception e) {
-            log.error("의미론적 유사도 계산 중 오류", e);
+            log.error("의미론적 유사도 계산 중 예상치 못한 오류", e);
             return Map.of("similarity_score", 0.0);
         }
     }
@@ -229,8 +249,14 @@ public class MLIntegrationService {
 
             return generateFallbackSimulationResult();
 
+        } catch (ResourceAccessException e) {
+            log.error("면접 시뮬레이션 중 연결 실패: {}", e.getMessage(), e);
+            return generateFallbackSimulationResult();
+        } catch (HttpClientErrorException | HttpServerErrorException e) {
+            log.error("면접 시뮬레이션 중 HTTP 오류: {} - {}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            return generateFallbackSimulationResult();
         } catch (Exception e) {
-            log.error("면접 시뮬레이션 중 오류", e);
+            log.error("면접 시뮬레이션 중 예상치 못한 오류", e);
             return generateFallbackSimulationResult();
         }
     }
@@ -242,7 +268,9 @@ public class MLIntegrationService {
         try {
             String url = mlApiBaseUrl + "/health";
             ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
-            return response.getStatusCode() == HttpStatus.OK;
+            boolean isHealthy = response.getStatusCode() == HttpStatus.OK;
+            log.debug("ML 서버 상태 확인 - 정상: {}", isHealthy);
+            return isHealthy;
         } catch (Exception e) {
             log.warn("ML 서버 상태 확인 실패: {}", e.getMessage());
             return false;
@@ -263,35 +291,86 @@ public class MLIntegrationService {
         return headers;
     }
 
-    private Question convertToQuestion(Map<String, Object> questionData) {
-        Question question = new Question();
-        question.setContent((String) questionData.get("content"));
-
-        // 타입 변환
-        String typeStr = (String) questionData.get("type");
-        try {
-            question.setType(QuestionType.valueOf(typeStr.toUpperCase()));
-        } catch (Exception e) {
-            question.setType(QuestionType.TECHNICAL); // 기본값
+    private List<Question> processQuestionResponse(Map<String, Object> responseBody) {
+        if (!responseBody.containsKey("questions")) {
+            log.error("ML 응답에 'questions' 필드가 없습니다.");
+            throw new MLResponseParsingException();
         }
 
-        question.setCategory((String) questionData.get("category"));
+        Object questionsObj = responseBody.get("questions");
+        if (!(questionsObj instanceof List)) {
+            log.error("ML 응답의 'questions' 필드가 배열이 아닙니다.");
+            throw new MLResponseParsingException();
+        }
 
-        // 난이도 변환
-        Object difficultyObj = questionData.get("difficultyLevel");
-        if (difficultyObj instanceof Integer) {
-            question.setDifficultyLevel((Integer) difficultyObj);
-        } else if (difficultyObj instanceof String) {
+        List<?> questionsList = (List<?>) questionsObj;
+        if (questionsList.isEmpty()) {
+            log.error("생성된 질문이 없습니다.");
+            throw new QuestionGenerationException();
+        }
+
+        List<Question> result = new ArrayList<>();
+        int sequence = 1;
+
+        for (Object questionObj : questionsList) {
             try {
-                question.setDifficultyLevel(Integer.parseInt((String) difficultyObj));
-            } catch (NumberFormatException e) {
-                question.setDifficultyLevel(2); // 기본값
+                Map<String, Object> questionMap = (Map<String, Object>) questionObj;
+                Question question = convertToQuestion(questionMap);
+                if (question != null) {
+                    question.setSequence(sequence++);
+                    result.add(question);
+                }
+            } catch (Exception e) {
+                log.warn("질문 변환 실패: {}, 원인: {}", questionObj, e.getMessage());
             }
-        } else {
-            question.setDifficultyLevel(2); // 기본값
         }
 
-        return question;
+        if (result.isEmpty()) {
+            log.error("유효한 질문을 생성하지 못했습니다.");
+            throw new QuestionGenerationException();
+        }
+
+        return result;
+    }
+
+    private Question convertToQuestion(Map<String, Object> questionData) {
+        Object contentObj = questionData.get("content");
+        if (contentObj == null || contentObj.toString().trim().isEmpty()) {
+            log.warn("질문 content가 비어 있음: {}", questionData);
+            return null;
+        }
+
+        String content = contentObj.toString().trim();
+        String typeStr = (String) questionData.get("type");
+        String category = (String) questionData.getOrDefault("category", "General");
+        Object levelObj = questionData.get("difficultyLevel");
+
+        QuestionType type = QuestionType.TECHNICAL;
+        if (typeStr != null) {
+            try {
+                type = QuestionType.valueOf(typeStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                log.warn("알 수 없는 type 값 '{}', 기본값 TECHNICAL 사용", typeStr);
+            }
+        }
+
+        int difficultyLevel = 1;
+        if (levelObj instanceof Number) {
+            difficultyLevel = ((Number) levelObj).intValue();
+        } else if (levelObj != null) {
+            try {
+                difficultyLevel = Integer.parseInt(levelObj.toString());
+            } catch (NumberFormatException e) {
+                log.warn("difficultyLevel 파싱 실패: {}, 기본값 1 사용", levelObj);
+            }
+        }
+
+        return Question.builder()
+                .content(content)
+                .type(type)
+                .category(category)
+                .difficultyLevel(difficultyLevel)
+                .build();
     }
 
     private AnswerEvaluation convertToAnswerEvaluation(Map<String, Object> responseData) {
@@ -331,10 +410,15 @@ public class MLIntegrationService {
             try {
                 return Integer.parseInt((String) value);
             } catch (NumberFormatException e) {
+                log.warn("정수 변환 실패 - key: {}, value: {}", key, value);
                 return 0;
             }
         }
         return 0;
+    }
+
+    private Map<String, Object> getDefaultSimilarityResult() {
+        return Map.of("matched_keywords", List.of(), "keyword_match_score", 0.0);
     }
 
     // ================================================================================
@@ -358,14 +442,15 @@ public class MLIntegrationService {
         );
 
         List<Question> questions = new ArrayList<>();
-        Random random = new Random();
 
         for (int i = 0; i < Math.min(questionCount, fallbackQuestions.size()); i++) {
-            Question question = new Question();
-            question.setContent(fallbackQuestions.get(i));
-            question.setType(QuestionType.PERSONALITY);
-            question.setCategory("일반");
-            question.setDifficultyLevel(2);
+            Question question = Question.builder()
+                    .content(fallbackQuestions.get(i))
+                    .type(QuestionType.PERSONALITY)
+                    .category("일반")
+                    .difficultyLevel(2)
+                    .sequence(i + 1)
+                    .build();
             questions.add(question);
         }
 

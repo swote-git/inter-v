@@ -5,6 +5,7 @@ import dev.swote.interv.domain.interview.entity.Question;
 import dev.swote.interv.domain.interview.entity.QuestionType;
 import dev.swote.interv.domain.position.entity.Position;
 import dev.swote.interv.domain.resume.entity.Resume;
+import dev.swote.interv.exception.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,7 +38,7 @@ public class LlmService {
         try {
             log.info("면접 질문 생성 요청 - 포지션: {}, 질문 수: {}", position.getName(), count);
 
-            // 1. 요청 바디 구성 (FastAPI 스키마에 맞춤)
+            // 1. 요청 바디 구성
             Map<String, Object> requestBody = createQuestionRequest(resume, position, count);
 
             // 2. HTTP 헤더 설정
@@ -61,17 +62,20 @@ public class LlmService {
             return processQuestionResponse(responseEntity.getBody(), count);
 
         } catch (ResourceAccessException e) {
-            log.error("ML 서버 연결 실패: {}", e.getMessage());
-            throw new RuntimeException("ML 서버에 연결할 수 없습니다. 서버 상태를 확인해주세요.", e);
+            log.error("ML 서버 연결 실패: {}", e.getMessage(), e);
+            throw new MLConnectionException();
         } catch (HttpClientErrorException e) {
-            log.error("클라이언트 오류 (4xx): {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new RuntimeException("요청 형식이 올바르지 않습니다: " + e.getMessage(), e);
+            log.error("클라이언트 오류 (4xx): {} - {}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            throw new MLBadRequestException();
         } catch (HttpServerErrorException e) {
-            log.error("서버 오류 (5xx): {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new RuntimeException("ML 서버에서 오류가 발생했습니다: " + e.getMessage(), e);
+            log.error("서버 오류 (5xx): {} - {}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            throw new MLServerErrorException();
+        } catch (MLResponseParsingException | QuestionGenerationException e) {
+            // 이미 적절한 커스텀 예외이므로 재던지기
+            throw e;
         } catch (Exception e) {
             log.error("예상치 못한 오류 발생: {}", e.getMessage(), e);
-            throw new RuntimeException("면접 질문 생성 중 오류가 발생했습니다.", e);
+            throw new LLMServiceException("error.llm.question.generation.failed");
         }
     }
 
@@ -104,10 +108,15 @@ public class LlmService {
             // 5. 응답 처리
             return processEvaluationResponse(responseEntity.getBody(), question, answerContent);
 
+        } catch (ResourceAccessException e) {
+            log.error("답변 평가 중 연결 실패: {}", e.getMessage(), e);
+            return createDefaultAnswer(question, answerContent, "네트워크 연결 오류로 인해 기본 평가가 제공됩니다.");
+        } catch (HttpClientErrorException | HttpServerErrorException e) {
+            log.error("답변 평가 중 HTTP 오류: {} - {}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            return createDefaultAnswer(question, answerContent, "서버 오류로 인해 기본 평가가 제공됩니다.");
         } catch (Exception e) {
-            log.error("답변 평가 중 오류 발생: {}", e.getMessage(), e);
-            // 평가 실패 시 기본 답변 반환
-            return createDefaultAnswer(question, answerContent);
+            log.error("답변 평가 중 예상치 못한 오류: {}", e.getMessage(), e);
+            return createDefaultAnswer(question, answerContent, "평가 처리 중 오류가 발생하여 기본 평가가 제공됩니다.");
         }
     }
 
@@ -118,9 +127,10 @@ public class LlmService {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("resume", resume.getContent());
         requestBody.put("position", position.getName());
-        requestBody.put("question_count", count); // FastAPI 스키마의 snake_case 사용
+        requestBody.put("question_count", count);
 
-        log.debug("요청 바디: {}", requestBody);
+        log.debug("질문 생성 요청 바디: resume 길이={}, position={}, count={}",
+                resume.getContent().length(), position.getName(), count);
         return requestBody;
     }
 
@@ -134,6 +144,8 @@ public class LlmService {
         requestBody.put("resume", resume.getContent());
         requestBody.put("cover_letter", ""); // 자기소개서가 없는 경우 빈 문자열
 
+        log.debug("답변 평가 요청 바디: question 길이={}, answer 길이={}",
+                question.getContent().length(), answerContent.length());
         return requestBody;
     }
 
@@ -148,6 +160,9 @@ public class LlmService {
         // API 키가 있는 경우 인증 헤더 추가
         if (apiKey != null && !apiKey.trim().isEmpty()) {
             headers.set("Authorization", "Bearer " + apiKey);
+            log.debug("API 키가 설정되었습니다.");
+        } else {
+            log.debug("API 키가 설정되지 않았습니다.");
         }
 
         return headers;
@@ -157,18 +172,26 @@ public class LlmService {
      * FastAPI 질문 생성 응답 처리
      */
     private List<Question> processQuestionResponse(Map<String, Object> responseBody, int expectedCount) {
-        if (responseBody == null || !responseBody.containsKey("questions")) {
-            throw new RuntimeException("ML 응답에 'questions' 필드가 없습니다.");
+        if (responseBody == null) {
+            log.error("ML 서버 응답이 null입니다.");
+            throw new MLResponseParsingException("error.llm.response.parsing.failed");
+        }
+
+        if (!responseBody.containsKey("questions")) {
+            log.error("ML 응답에 'questions' 필드가 없습니다. 응답: {}", responseBody);
+            throw new MLResponseParsingException("error.llm.response.parsing.failed");
         }
 
         Object questionsObj = responseBody.get("questions");
         if (!(questionsObj instanceof List)) {
-            throw new RuntimeException("ML 응답의 'questions' 필드가 배열이 아닙니다.");
+            log.error("ML 응답의 'questions' 필드가 배열이 아닙니다. 타입: {}", questionsObj.getClass().getSimpleName());
+            throw new MLResponseParsingException("error.llm.response.parsing.failed");
         }
 
         List<?> questionsList = (List<?>) questionsObj;
         if (questionsList.isEmpty()) {
-            throw new RuntimeException("생성된 질문이 없습니다.");
+            log.error("생성된 질문이 없습니다.");
+            throw new QuestionGenerationException("error.llm.question.generation.failed");
         }
 
         List<Question> result = new ArrayList<>();
@@ -192,7 +215,8 @@ public class LlmService {
         }
 
         if (result.isEmpty()) {
-            throw new RuntimeException("유효한 질문을 생성하지 못했습니다.");
+            log.error("유효한 질문을 생성하지 못했습니다.");
+            throw new QuestionGenerationException("error.llm.question.generation.failed");
         }
 
         log.info("성공적으로 {}개의 질문을 생성했습니다 (요청: {}개)", result.size(), expectedCount);
@@ -230,14 +254,21 @@ public class LlmService {
      * FastAPI 답변 평가 응답 처리
      */
     private Answer processEvaluationResponse(Map<String, Object> responseBody, Question question, String answerContent) {
+        if (responseBody == null) {
+            log.warn("평가 응답이 null입니다. 기본 평가를 생성합니다.");
+            return createDefaultAnswer(question, answerContent, "평가 응답을 받지 못했습니다.");
+        }
+
         int communicationScore = extractIntField(responseBody, "관련성", 70);
         int technicalScore = extractIntField(responseBody, "실무성", 70);
         int structureScore = extractIntField(responseBody, "구체성", 70);
         String feedback = extractStringField(responseBody, "피드백");
 
-        if (feedback == null) {
+        if (feedback == null || feedback.trim().isEmpty()) {
             feedback = "답변이 제출되었습니다.";
         }
+
+        log.debug("평가 결과 - 관련성: {}, 실무성: {}, 구체성: {}", communicationScore, technicalScore, structureScore);
 
         return Answer.builder()
                 .question(question)
@@ -252,11 +283,13 @@ public class LlmService {
     /**
      * 평가 실패시 기본 답변 생성
      */
-    private Answer createDefaultAnswer(Question question, String answerContent) {
+    private Answer createDefaultAnswer(Question question, String answerContent, String reason) {
+        log.info("기본 답변 생성 - 이유: {}", reason);
+
         return Answer.builder()
                 .question(question)
                 .content(answerContent)
-                .feedback("답변이 정상적으로 제출되었습니다. 자세한 평가는 나중에 제공될 예정입니다.")
+                .feedback("답변이 정상적으로 제출되었습니다. " + reason)
                 .communicationScore(75)
                 .technicalScore(75)
                 .structureScore(75)
@@ -277,20 +310,39 @@ public class LlmService {
             try {
                 return Integer.parseInt(value.toString());
             } catch (NumberFormatException e) {
-                log.warn("정수 파싱 실패 - key: {}, value: {}", key, value);
+                log.warn("정수 파싱 실패 - key: {}, value: {}, 기본값 사용: {}", key, value, defaultValue);
             }
         }
         return defaultValue;
     }
 
     private QuestionType parseQuestionType(String typeStr) {
-        if (typeStr == null) return QuestionType.TECHNICAL;
+        if (typeStr == null) {
+            log.debug("질문 타입이 null이므로 기본값 TECHNICAL 사용");
+            return QuestionType.TECHNICAL;
+        }
 
         try {
             return QuestionType.valueOf(typeStr.toUpperCase());
         } catch (IllegalArgumentException e) {
             log.warn("알 수 없는 질문 타입: {}, 기본값 TECHNICAL 사용", typeStr);
             return QuestionType.TECHNICAL;
+        }
+    }
+
+    /**
+     * ML 서버 상태 확인
+     */
+    public boolean isMLServerHealthy() {
+        try {
+            String healthEndpoint = apiUrl + "/health";
+            ResponseEntity<String> response = restTemplate.getForEntity(healthEndpoint, String.class);
+            boolean isHealthy = response.getStatusCode() == HttpStatus.OK;
+            log.debug("ML 서버 상태 확인 - 정상: {}", isHealthy);
+            return isHealthy;
+        } catch (Exception e) {
+            log.warn("ML 서버 상태 확인 실패: {}", e.getMessage());
+            return false;
         }
     }
 }

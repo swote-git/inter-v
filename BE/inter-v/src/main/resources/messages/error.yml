@@ -62,6 +62,11 @@ error:
       failed: "LLM 서비스 처리에 실패했습니다."
       unavailable: "LLM 서비스를 사용할 수 없습니다."
       timeout: "LLM 서비스 응답 시간이 초과되었습니다."
+    connection:
+      failed: "AI 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요."
+    question:
+      generation:
+        failed: "면접 질문 생성에 실패했습니다. 다시 시도해주세요."
 
   # 평가 관련 에러 메시지
   evaluation:
