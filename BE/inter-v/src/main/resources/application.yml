@@ -40,7 +40,7 @@ management:
         include: health,info,metrics
 # JWT 설정
 jwt:
-  secret: ${JWT_SECRET:mySecretKeyForJwtTokenGenerationThatNeedsToBeAtLeast256BitsLongForHS256Algorithm}
+  secret: ${JWT_SECRET:}
   access-token-validity: ${JWT_ACCESS_TOKEN_VALIDITY:3600000}  # 1시간 (밀리초)
   refresh-token-validity: ${JWT_REFRESH_TOKEN_VALIDITY:604800000}  # 7일 (밀리초)
 
@@ -116,7 +116,7 @@ spring:
         format_sql: true
 
 jwt:
-  secret: localSecretKeyForJwtTokenGenerationThatNeedsToBeAtLeast256BitsLongForHS256Algorithm
+  secret:
   access-token-validity: 3600000
   refresh-token-validity: 604800000
 
