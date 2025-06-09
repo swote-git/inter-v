@@ -1,6 +1,6 @@
 package dev.swote.interv.service.interview;
 
-import dev.swote.interv.domain.interview.DTO.*;
+import dev.swote.interv.domain.interview.dto.*;
 import dev.swote.interv.domain.interview.repository.*;
 import dev.swote.interv.exception.*;
 import lombok.extern.slf4j.Slf4j;

@@ -2,7 +2,7 @@ package dev.swote.interv.service.ai;
 
 import dev.swote.interv.domain.interview.entity.AnswerEvaluation;
 import dev.swote.interv.domain.interview.entity.Question;
-import dev.swote.interv.domain.interview.DTO.InterviewSimulationResult;
+import dev.swote.interv.domain.interview.dto.InterviewSimulationResult;
 import dev.swote.interv.domain.interview.entity.QuestionType;
 import dev.swote.interv.exception.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,7 +19,6 @@ import org.springframework.web.client.ResourceAccessException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 @Slf4j
 @Service
