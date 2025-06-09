@@ -1,24 +1,27 @@
 package dev.swote.interv.service.resume;
 
+import dev.swote.interv.domain.resume.dto.*;
 import dev.swote.interv.domain.resume.entity.*;
+import dev.swote.interv.domain.resume.mapper.ResumeMapper;
 import dev.swote.interv.domain.resume.repository.*;
 import dev.swote.interv.domain.user.entity.User;
 import dev.swote.interv.domain.user.repository.UserRepository;
 import dev.swote.interv.exception.ResourceNotFoundException;
 import dev.swote.interv.exception.UserNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.time.LocalDate;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ResumeService {
@@ -30,411 +33,218 @@ public class ResumeService {
     private final ResumeEducationRepository educationRepository;
     private final UserRepository userRepository;
     private final ResumeFileService resumeFileService;
+    private final ResumeMapper resumeMapper;
 
     @Transactional(readOnly = true)
-    public List<Resume> getUserResumes(Integer userId) {
+    public Page<ResumeListResponse> getUserResumes(Integer userId, Pageable pageable) {
+        log.info("사용자 {}의 이력서 목록 조회 - 페이지: {}, 크기: {}", userId, pageable.getPageNumber(), pageable.getPageSize());
+
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
-        return resumeRepository.findByUser(user);
+                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + userId));
+
+        Page<Resume> resumePage = resumeRepository.findByUser(user, pageable);
+
+        List<ResumeListResponse> responseList = resumePage.getContent().stream()
+                .map(resumeMapper::toListResponse)
+                .collect(Collectors.toList());
+
+        log.info("사용자 {}의 이력서 {}개 조회 완료", userId, responseList.size());
+        return new PageImpl<>(responseList, pageable, resumePage.getTotalElements());
     }
 
     @Transactional(readOnly = true)
-    public Page<Resume> getUserResumes(Integer userId, Pageable pageable) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
-        return resumeRepository.findByUser(user, pageable);
-    }
+    public ResumeResponse getResumeById(Integer resumeId) {
+        log.info("이력서 상세 조회 - ID: {}", resumeId);
 
-    @Transactional(readOnly = true)
-    public Resume getResumeById(Integer resumeId) {
-        return resumeRepository.findById(resumeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Resume not found"));
+        Resume resume = resumeRepository.findById(resumeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Resume not found with id: " + resumeId));
+
+        ResumeResponse response = resumeMapper.toResponse(resume);
+        log.info("이력서 상세 조회 완료 - ID: {}, 제목: {}", resumeId, response.getTitle());
+
+        return response;
     }
 
     @Transactional
-    public Resume createResume(Integer userId, CreateResumeRequest request) {
+    public ResumeResponse createResume(Integer userId, CreateResumeRequest request) {
+        log.info("이력서 생성 - 사용자 ID: {}, 제목: {}", userId, request.getTitle());
+
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + userId));
 
-        Resume resume = Resume.builder()
-                .user(user)
-                .title(request.getTitle())
-                .content(request.getContent())
-                .objective(request.getObjective())
-                .status(ResumeStatus.ACTIVE)
-                .skills(new HashSet<>(request.getSkills()))
-                .build();
-
+        // Resume 엔티티 생성
+        Resume resume = resumeMapper.toEntity(request, user);
         resume = resumeRepository.save(resume);
 
-        // Add projects
-        if (request.getProjects() != null) {
-            for (ProjectRequest projectRequest : request.getProjects()) {
-                ResumeProject project = ResumeProject.builder()
-                        .resume(resume)
-                        .projectName(projectRequest.getProjectName())
-                        .description(projectRequest.getDescription())
-                        .startDate(projectRequest.getStartDate())
-                        .endDate(projectRequest.getEndDate())
-                        .inProgress(projectRequest.getInProgress())
-                        .build();
-                projectRepository.save(project);
-            }
-        }
+        // 자식 엔티티들 생성
+        createChildEntities(resume, request);
 
-        // Add certifications
-        if (request.getCertifications() != null) {
-            for (CertificationRequest certRequest : request.getCertifications()) {
-                ResumeCertification certification = ResumeCertification.builder()
-                        .resume(resume)
-                        .certificationName(certRequest.getCertificationName())
-                        .issuingOrganization(certRequest.getIssuingOrganization())
-                        .acquiredDate(certRequest.getAcquiredDate())
-                        .expiryDate(certRequest.getExpiryDate())
-                        .noExpiry(certRequest.getNoExpiry())
-                        .build();
-                certificationRepository.save(certification);
-            }
-        }
+        // 응답 생성
+        ResumeResponse response = resumeMapper.toResponse(resume);
+        log.info("이력서 생성 완료 - ID: {}, 제목: {}", response.getId(), response.getTitle());
 
-        // Add work experiences
-        if (request.getWorkExperiences() != null) {
-            for (WorkExperienceRequest workRequest : request.getWorkExperiences()) {
-                ResumeWorkExperience workExperience = ResumeWorkExperience.builder()
-                        .resume(resume)
-                        .companyName(workRequest.getCompanyName())
-                        .position(workRequest.getPosition())
-                        .department(workRequest.getDepartment())
-                        .location(workRequest.getLocation())
-                        .startDate(workRequest.getStartDate())
-                        .endDate(workRequest.getEndDate())
-                        .currentlyWorking(workRequest.getCurrentlyWorking())
-                        .responsibilities(workRequest.getResponsibilities())
-                        .achievements(workRequest.getAchievements())
-                        .build();
-                workExperienceRepository.save(workExperience);
-            }
-        }
-
-        // Add education
-        if (request.getEducations() != null) {
-            for (EducationRequest eduRequest : request.getEducations()) {
-                ResumeEducation education = ResumeEducation.builder()
-                        .resume(resume)
-                        .schoolType(eduRequest.getSchoolType())
-                        .schoolName(eduRequest.getSchoolName())
-                        .location(eduRequest.getLocation())
-                        .major(eduRequest.getMajor())
-                        .enrollmentDate(eduRequest.getEnrollmentDate())
-                        .graduationDate(eduRequest.getGraduationDate())
-                        .inProgress(eduRequest.getInProgress())
-                        .gpa(eduRequest.getGpa())
-                        .build();
-                educationRepository.save(education);
-            }
-        }
-
-        return resume;
+        return response;
     }
 
     @Transactional
-    public Resume uploadResumeFile(Integer userId, MultipartFile file, String title) throws IOException {
+    public ResumeResponse uploadResumeFile(Integer userId, MultipartFile file, String title) throws IOException {
+        log.info("이력서 파일 업로드 - 사용자 ID: {}, 파일명: {}, 제목: {}", userId, file.getOriginalFilename(), title);
+
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
-        // TODO(FIX IT)
+                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + userId));
 
-        String content = resumeFileService.extractContent(file);
-        String filePath = resumeFileService.storeFile(file);
+        try {
+            String content = resumeFileService.extractContent(file);
+            String filePath = resumeFileService.storeFile(file);
 
-        Resume resume = Resume.builder()
-                .user(user)
-                .title(title)
-                .content(content)
-                .filePath(filePath)
-                .status(ResumeStatus.ACTIVE)
-                .build();
+            Resume resume = Resume.builder()
+                    .user(user)
+                    .title(title)
+                    .content(content)
+                    .filePath(filePath)
+                    .status(ResumeStatus.ACTIVE)
+                    .build();
 
-        return resumeRepository.save(resume);
+            resume = resumeRepository.save(resume);
+
+            ResumeResponse response = resumeMapper.toResponse(resume);
+            log.info("이력서 파일 업로드 완료 - ID: {}, 파일: {}", response.getId(), file.getOriginalFilename());
+
+            return response;
+        } catch (Exception e) {
+            log.error("이력서 파일 업로드 실패 - 사용자 ID: {}, 파일: {}, 오류: {}", userId, file.getOriginalFilename(), e.getMessage());
+            throw new RuntimeException("파일 업로드에 실패했습니다", e);
+        }
     }
 
     @Transactional
-    public Resume updateResume(Integer resumeId, UpdateResumeRequest request) {
+    public ResumeResponse updateResume(Integer resumeId, UpdateResumeRequest request) {
+        log.info("이력서 수정 - ID: {}, 제목: {}", resumeId, request.getTitle());
+
         Resume resume = resumeRepository.findById(resumeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Resume not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Resume not found with id: " + resumeId));
 
-        resume.setTitle(request.getTitle());
-        resume.setContent(request.getContent());
-        resume.setObjective(request.getObjective());
+        // Resume 기본 정보 업데이트
+        resumeMapper.updateEntity(resume, request);
+        resume = resumeRepository.save(resume);
 
-        // Update skills
-        if (request.getSkills() != null) {
-            resume.getSkills().clear();
-            resume.getSkills().addAll(request.getSkills());
-        }
+        // 기존 자식 엔티티들 삭제
+        deleteChildEntities(resumeId);
 
-        Resume savedResume = resumeRepository.save(resume);
+        // 새로운 자식 엔티티들 생성
+        createChildEntities(resume, request);
 
-        // Update projects
-        if (request.getProjects() != null) {
-            // Delete existing projects
-            List<ResumeProject> existingProjects = projectRepository.findByResumeId(resumeId);
-            projectRepository.deleteAll(existingProjects);
+        ResumeResponse response = resumeMapper.toResponse(resume);
+        log.info("이력서 수정 완료 - ID: {}, 제목: {}", resumeId, response.getTitle());
 
-            // Add new projects
-            for (ProjectRequest projectRequest : request.getProjects()) {
-                ResumeProject project = ResumeProject.builder()
-                        .resume(savedResume)
-                        .projectName(projectRequest.getProjectName())
-                        .description(projectRequest.getDescription())
-                        .startDate(projectRequest.getStartDate())
-                        .endDate(projectRequest.getEndDate())
-                        .inProgress(projectRequest.getInProgress())
-                        .build();
-                projectRepository.save(project);
-            }
-        }
-
-        // Update certifications
-        if (request.getCertifications() != null) {
-            // Delete existing certifications
-            List<ResumeCertification> existingCerts = certificationRepository.findByResumeId(resumeId);
-            certificationRepository.deleteAll(existingCerts);
-
-            // Add new certifications
-            for (CertificationRequest certRequest : request.getCertifications()) {
-                ResumeCertification certification = ResumeCertification.builder()
-                        .resume(savedResume)
-                        .certificationName(certRequest.getCertificationName())
-                        .issuingOrganization(certRequest.getIssuingOrganization())
-                        .acquiredDate(certRequest.getAcquiredDate())
-                        .expiryDate(certRequest.getExpiryDate())
-                        .noExpiry(certRequest.getNoExpiry())
-                        .build();
-                certificationRepository.save(certification);
-            }
-        }
-
-        // Update work experiences
-        if (request.getWorkExperiences() != null) {
-            // Delete existing work experiences
-            List<ResumeWorkExperience> existingExps = workExperienceRepository.findByResumeId(resumeId);
-            workExperienceRepository.deleteAll(existingExps);
-
-            // Add new work experiences
-            for (WorkExperienceRequest workRequest : request.getWorkExperiences()) {
-                ResumeWorkExperience workExperience = ResumeWorkExperience.builder()
-                        .resume(savedResume)
-                        .companyName(workRequest.getCompanyName())
-                        .position(workRequest.getPosition())
-                        .department(workRequest.getDepartment())
-                        .location(workRequest.getLocation())
-                        .startDate(workRequest.getStartDate())
-                        .endDate(workRequest.getEndDate())
-                        .currentlyWorking(workRequest.getCurrentlyWorking())
-                        .responsibilities(workRequest.getResponsibilities())
-                        .achievements(workRequest.getAchievements())
-                        .build();
-                workExperienceRepository.save(workExperience);
-            }
-        }
-
-        // Update educations
-        if (request.getEducations() != null) {
-            // Delete existing educations
-            List<ResumeEducation> existingEdus = educationRepository.findByResumeId(resumeId);
-            educationRepository.deleteAll(existingEdus);
-
-            // Add new educations
-            for (EducationRequest eduRequest : request.getEducations()) {
-                ResumeEducation education = ResumeEducation.builder()
-                        .resume(savedResume)
-                        .schoolType(eduRequest.getSchoolType())
-                        .schoolName(eduRequest.getSchoolName())
-                        .location(eduRequest.getLocation())
-                        .major(eduRequest.getMajor())
-                        .enrollmentDate(eduRequest.getEnrollmentDate())
-                        .graduationDate(eduRequest.getGraduationDate())
-                        .inProgress(eduRequest.getInProgress())
-                        .gpa(eduRequest.getGpa())
-                        .build();
-                educationRepository.save(education);
-            }
-        }
-
-        return savedResume;
+        return response;
     }
 
     @Transactional
     public void deleteResume(Integer resumeId) {
+        log.info("이력서 삭제 - ID: {}", resumeId);
+
         Resume resume = resumeRepository.findById(resumeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Resume not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Resume not found with id: " + resumeId));
 
         resume.delete();
         resumeRepository.save(resume);
+
+        log.info("이력서 삭제 완료 - ID: {}", resumeId);
     }
 
-    // Request classes for creating and updating resumes
-    public static class CreateResumeRequest {
-        private String title;
-        private String content;
-        private String objective;
-        private List<String> skills;
-        private List<ProjectRequest> projects;
-        private List<CertificationRequest> certifications;
-        private List<WorkExperienceRequest> workExperiences;
-        private List<EducationRequest> educations;
-
-        // Getters and setters
-        public String getTitle() { return title; }
-        public void setTitle(String title) { this.title = title; }
-
-        public String getContent() { return content; }
-        public void setContent(String content) { this.content = content; }
-
-        public String getObjective() { return objective; }
-        public void setObjective(String objective) { this.objective = objective; }
-
-        public List<String> getSkills() { return skills; }
-        public void setSkills(List<String> skills) { this.skills = skills; }
-
-        public List<ProjectRequest> getProjects() { return projects; }
-        public void setProjects(List<ProjectRequest> projects) { this.projects = projects; }
-
-        public List<CertificationRequest> getCertifications() { return certifications; }
-        public void setCertifications(List<CertificationRequest> certifications) { this.certifications = certifications; }
-
-        public List<WorkExperienceRequest> getWorkExperiences() { return workExperiences; }
-        public void setWorkExperiences(List<WorkExperienceRequest> workExperiences) { this.workExperiences = workExperiences; }
-
-        public List<EducationRequest> getEducations() { return educations; }
-        public void setEducations(List<EducationRequest> educations) { this.educations = educations; }
+    // 자식 엔티티들 생성
+    private void createChildEntities(Resume resume, CreateResumeRequest request) {
+        createChildEntities(resume,
+                request.getProjects(),
+                request.getCertifications(),
+                request.getWorkExperiences(),
+                request.getEducations());
     }
 
-    public static class UpdateResumeRequest extends CreateResumeRequest {
-        // Inherits all fields from CreateResumeRequest
+    private void createChildEntities(Resume resume, UpdateResumeRequest request) {
+        createChildEntities(resume,
+                request.getProjects(),
+                request.getCertifications(),
+                request.getWorkExperiences(),
+                request.getEducations());
     }
 
-    public static class ProjectRequest {
-        private String projectName;
-        private String description;
-        private LocalDate startDate;
-        private LocalDate endDate;
-        private Boolean inProgress;
+    private void createChildEntities(Resume resume,
+                                     List<ResumeProjectRequest> projects,
+                                     List<ResumeCertificationRequest> certifications,
+                                     List<ResumeWorkExperienceRequest> workExperiences,
+                                     List<ResumeEducationRequest> educations) {
 
-        // Getters and setters
-        public String getProjectName() { return projectName; }
-        public void setProjectName(String projectName) { this.projectName = projectName; }
+        // 프로젝트 생성
+        if (projects != null) {
+            List<ResumeProject> projectEntities = projects.stream()
+                    .map(projectRequest -> resumeMapper.toProjectEntity(projectRequest, resume))
+                    .collect(Collectors.toList());
+            projectRepository.saveAll(projectEntities);
+            log.debug("프로젝트 {}개 생성 완료", projectEntities.size());
+        }
 
-        public String getDescription() { return description; }
-        public void setDescription(String description) { this.description = description; }
+        // 자격증 생성
+        if (certifications != null) {
+            List<ResumeCertification> certificationEntities = certifications.stream()
+                    .map(certRequest -> resumeMapper.toCertificationEntity(certRequest, resume))
+                    .collect(Collectors.toList());
+            certificationRepository.saveAll(certificationEntities);
+            log.debug("자격증 {}개 생성 완료", certificationEntities.size());
+        }
 
-        public LocalDate getStartDate() { return startDate; }
-        public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
+        // 경력 생성
+        if (workExperiences != null) {
+            List<ResumeWorkExperience> workExperienceEntities = workExperiences.stream()
+                    .map(workRequest -> resumeMapper.toWorkExperienceEntity(workRequest, resume))
+                    .collect(Collectors.toList());
+            workExperienceRepository.saveAll(workExperienceEntities);
+            log.debug("경력 {}개 생성 완료", workExperienceEntities.size());
+        }
 
-        public LocalDate getEndDate() { return endDate; }
-        public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
-
-        public Boolean getInProgress() { return inProgress; }
-        public void setInProgress(Boolean inProgress) { this.inProgress = inProgress; }
+        // 학력 생성
+        if (educations != null) {
+            List<ResumeEducation> educationEntities = educations.stream()
+                    .map(eduRequest -> resumeMapper.toEducationEntity(eduRequest, resume))
+                    .collect(Collectors.toList());
+            educationRepository.saveAll(educationEntities);
+            log.debug("학력 {}개 생성 완료", educationEntities.size());
+        }
     }
 
-    public static class CertificationRequest {
-        private String certificationName;
-        private String issuingOrganization;
-        private LocalDate acquiredDate;
-        private LocalDate expiryDate;
-        private Boolean noExpiry;
+    // 기존 자식 엔티티들 삭제
+    private void deleteChildEntities(Integer resumeId) {
+        log.debug("기존 자식 엔티티들 삭제 시작 - Resume ID: {}", resumeId);
 
-        // Getters and setters
-        public String getCertificationName() { return certificationName; }
-        public void setCertificationName(String certificationName) { this.certificationName = certificationName; }
+        // 기존 프로젝트 삭제
+        List<ResumeProject> existingProjects = projectRepository.findByResumeId(resumeId);
+        if (!existingProjects.isEmpty()) {
+            projectRepository.deleteAll(existingProjects);
+            log.debug("기존 프로젝트 {}개 삭제", existingProjects.size());
+        }
 
-        public String getIssuingOrganization() { return issuingOrganization; }
-        public void setIssuingOrganization(String issuingOrganization) { this.issuingOrganization = issuingOrganization; }
+        // 기존 자격증 삭제
+        List<ResumeCertification> existingCerts = certificationRepository.findByResumeId(resumeId);
+        if (!existingCerts.isEmpty()) {
+            certificationRepository.deleteAll(existingCerts);
+            log.debug("기존 자격증 {}개 삭제", existingCerts.size());
+        }
 
-        public LocalDate getAcquiredDate() { return acquiredDate; }
-        public void setAcquiredDate(LocalDate acquiredDate) { this.acquiredDate = acquiredDate; }
+        // 기존 경력 삭제
+        List<ResumeWorkExperience> existingExps = workExperienceRepository.findByResumeId(resumeId);
+        if (!existingExps.isEmpty()) {
+            workExperienceRepository.deleteAll(existingExps);
+            log.debug("기존 경력 {}개 삭제", existingExps.size());
+        }
 
-        public LocalDate getExpiryDate() { return expiryDate; }
-        public void setExpiryDate(LocalDate expiryDate) { this.expiryDate = expiryDate; }
+        // 기존 학력 삭제
+        List<ResumeEducation> existingEdus = educationRepository.findByResumeId(resumeId);
+        if (!existingEdus.isEmpty()) {
+            educationRepository.deleteAll(existingEdus);
+            log.debug("기존 학력 {}개 삭제", existingEdus.size());
+        }
 
-        public Boolean getNoExpiry() { return noExpiry; }
-        public void setNoExpiry(Boolean noExpiry) { this.noExpiry = noExpiry; }
-    }
-
-    public static class WorkExperienceRequest {
-        private String companyName;
-        private String position;
-        private String department;
-        private String location;
-        private LocalDate startDate;
-        private LocalDate endDate;
-        private Boolean currentlyWorking;
-        private String responsibilities;
-        private String achievements;
-
-        // Getters and setters
-        public String getCompanyName() { return companyName; }
-        public void setCompanyName(String companyName) { this.companyName = companyName; }
-
-        public String getPosition() { return position; }
-        public void setPosition(String position) { this.position = position; }
-
-        public String getDepartment() { return department; }
-        public void setDepartment(String department) { this.department = department; }
-
-        public String getLocation() { return location; }
-        public void setLocation(String location) { this.location = location; }
-
-        public LocalDate getStartDate() { return startDate; }
-        public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
-
-        public LocalDate getEndDate() { return endDate; }
-        public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
-
-        public Boolean getCurrentlyWorking() { return currentlyWorking; }
-        public void setCurrentlyWorking(Boolean currentlyWorking) { this.currentlyWorking = currentlyWorking; }
-
-        public String getResponsibilities() { return responsibilities; }
-        public void setResponsibilities(String responsibilities) { this.responsibilities = responsibilities; }
-
-        public String getAchievements() { return achievements; }
-        public void setAchievements(String achievements) { this.achievements = achievements; }
-    }
-
-    public static class EducationRequest {
-        private String schoolType;
-        private String schoolName;
-        private String location;
-        private String major;
-        private LocalDate enrollmentDate;
-        private LocalDate graduationDate;
-        private Boolean inProgress;
-        private String gpa;
-
-        // Getters and setters
-        public String getSchoolType() { return schoolType; }
-        public void setSchoolType(String schoolType) { this.schoolType = schoolType; }
-
-        public String getSchoolName() { return schoolName; }
-        public void setSchoolName(String schoolName) { this.schoolName = schoolName; }
-
-        public String getLocation() { return location; }
-        public void setLocation(String location) { this.location = location; }
-
-        public String getMajor() { return major; }
-        public void setMajor(String major) { this.major = major; }
-
-        public LocalDate getEnrollmentDate() { return enrollmentDate; }
-        public void setEnrollmentDate(LocalDate enrollmentDate) { this.enrollmentDate = enrollmentDate; }
-
-        public LocalDate getGraduationDate() { return graduationDate; }
-        public void setGraduationDate(LocalDate graduationDate) { this.graduationDate = graduationDate; }
-
-        public Boolean getInProgress() { return inProgress; }
-        public void setInProgress(Boolean inProgress) { this.inProgress = inProgress; }
-
-        public String getGpa() { return gpa; }
-        public void setGpa(String gpa) { this.gpa = gpa; }
+        log.debug("기존 자식 엔티티들 삭제 완료 - Resume ID: {}", resumeId);
     }
 }
