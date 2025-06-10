@@ -434,6 +434,56 @@ function Resume() {
     }
   };
 
+  const handleEditClick = () => {
+    // 기존 이력서 데이터를 formData에 복사
+    setFormData({
+      title: existingResume.title || '',
+      content: existingResume.content || '',
+      objective: existingResume.objective || '',
+      skills: existingResume.skills || [],
+      projects: existingResume.projects.map(project => ({
+        id: project.id,
+        projectName: project.projectName || '',
+        description: project.description || '',
+        startDate: project.startDate || '',
+        endDate: project.endDate || '',
+        inProgress: project.inProgress || false
+      })),
+      certifications: existingResume.certifications.map(cert => ({
+        id: cert.id,
+        certificationName: cert.certificationName || '',
+        issuingOrganization: cert.issuingOrganization || '',
+        acquiredDate: cert.acquiredDate || '',
+        expiryDate: cert.expiryDate || '',
+        noExpiry: cert.noExpiry || false
+      })),
+      workExperiences: existingResume.workExperiences.map(work => ({
+        id: work.id,
+        companyName: work.companyName || '',
+        position: work.position || '',
+        department: work.department || '',
+        location: work.location || '',
+        startDate: work.startDate || '',
+        endDate: work.endDate || '',
+        currentlyWorking: work.currentlyWorking || false,
+        responsibilities: work.responsibilities || '',
+        achievements: work.achievements || ''
+      })),
+      educations: existingResume.educations.map(edu => ({
+        id: edu.id,
+        schoolType: edu.schoolType || '',
+        schoolName: edu.schoolName || '',
+        location: edu.location || '',
+        major: edu.major || '',
+        enrollmentDate: edu.enrollmentDate || '',
+        graduationDate: edu.graduationDate || '',
+        inProgress: edu.inProgress || false,
+        gpa: edu.gpa || ''
+      }))
+    });
+    setIsEditing(true);
+  };
+
   return (
     <div className="flex flex-col min-h-screen overflow-hidden">
       <Header />
@@ -458,11 +508,11 @@ function Resume() {
                           <div className="text-white">{existingResume.title}</div>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium mb-2 text-gray-300">내용</label>
+                          <label className="block text-sm font-medium mt-12 mb-2 text-gray-300">내용</label>
                           <div className="text-white whitespace-pre-wrap">{existingResume.content}</div>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium mb-2 text-gray-300">목표</label>
+                          <label className="block text-sm font-medium mt-12 mb-2 text-gray-300">목표</label>
                           <div className="text-white">{existingResume.objective}</div>
                         </div>
                       </div>
@@ -519,20 +569,20 @@ function Resume() {
                       <div className="space-y-6">
                         {existingResume.workExperiences.map((work, index) => (
                           <div key={index} className="border-b border-gray-700 last:border-0 pb-4 last:pb-0">
-                            <h3 className="text-lg font-medium text-white mb-1">{work.companyName}</h3>
-                            <p className="text-gray-300 mb-1">{work.position}</p>
-                            {work.department && <p className="text-gray-300 mb-1">{work.department}</p>}
-                            {work.location && <p className="text-gray-300 mb-1">{work.location}</p>}
+                            <h3 className="text-lg font-medium text-white mt-4 mb-1">{work.companyName}</h3>
+                            <p className="text-gray-300 mb-2">직무: {work.position}</p>
+                            {work.department && <p className="text-gray-300 mb-2">부서: {work.department}</p>}
+                            {work.location && <p className="text-gray-300 mb-2">근무지: {work.location}</p>}
                             <div className="text-sm text-gray-400 mb-2">
                               {work.startDate} ~ {work.currentlyWorking ? '현재' : work.endDate}
                             </div>
                             <div className="text-gray-300 mb-2">
-                              <h4 className="font-medium mb-1">주요 업무</h4>
+                              <h4 className="font-medium mt-6 mb-2">주요 업무</h4>
                               <p className="whitespace-pre-wrap">{work.responsibilities}</p>
                             </div>
                             {work.achievements && (
                               <div className="text-gray-300">
-                                <h4 className="font-medium mb-1">주요 성과</h4>
+                                <h4 className="font-medium mt-6 mb-2">주요 성과</h4>
                                 <p className="whitespace-pre-wrap">{work.achievements}</p>
                               </div>
                             )}
@@ -548,9 +598,9 @@ function Resume() {
                         {existingResume.educations.map((edu, index) => (
                           <div key={index} className="border-b border-gray-700 last:border-0 pb-4 last:pb-0">
                             <h3 className="text-lg font-medium text-white mb-1">{edu.schoolName}</h3>
-                            <p className="text-gray-300 mb-1">{edu.schoolType}</p>
-                            {edu.major && <p className="text-gray-300 mb-1">{edu.major}</p>}
-                            {edu.location && <p className="text-gray-300 mb-1">{edu.location}</p>}
+                            <p className="text-gray-300 mt-2 mb-2">학교 구분: {edu.schoolType}</p>
+                            {edu.major && <p className="text-gray-300 mb-2">전공: {edu.major}</p>}
+                            {edu.location && <p className="text-gray-300 mb-2">위치: {edu.location}</p>}
                             <div className="text-sm text-gray-400">
                               {edu.enrollmentDate} ~ {edu.inProgress ? '재학 중' : edu.graduationDate}
                               {edu.gpa && ` / 학점: ${edu.gpa}`}
@@ -562,7 +612,7 @@ function Resume() {
 
                     <div className="flex justify-end">
                       <button
-                        onClick={() => setIsEditing(true)}
+                        onClick={handleEditClick}
                         className="btn text-white bg-purple-600 hover:bg-purple-700"
                       >
                         이력서 수정
