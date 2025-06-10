@@ -19,23 +19,16 @@ public class ResumeEducation extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "resume_id")
     private Resume resume;
 
     private String schoolType;
-
     private String schoolName;
-
     private String location;
-
     private String major;
-
     private LocalDate enrollmentDate;
-
     private LocalDate graduationDate;
-
     private Boolean inProgress;
-
     private String gpa;
 }

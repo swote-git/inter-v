@@ -19,7 +19,7 @@ public class ResumeProject extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "resume_id")
     private Resume resume;
 
@@ -29,8 +29,6 @@ public class ResumeProject extends BaseEntity {
     private String description;
 
     private LocalDate startDate;
-
     private LocalDate endDate;
-
     private Boolean inProgress;
 }

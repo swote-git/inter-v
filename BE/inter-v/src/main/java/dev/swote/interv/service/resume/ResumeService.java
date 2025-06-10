@@ -142,7 +142,11 @@ public class ResumeService {
 
         // Resume 기본 정보 업데이트
         resumeMapper.updateEntity(resume, request);
-        resume = resumeRepository.save(resume);
+
+        // 먼저 Resume을 저장하고 flush하여 DB에 확실히 반영
+        resume = resumeRepository.saveAndFlush(resume);
+
+        log.debug("Resume 저장 완료 - ID: {}", resume.getId());
 
         // 자식 엔티티들 업데이트
         updateChildEntities(resume, request);
@@ -255,20 +259,25 @@ public class ResumeService {
         }
     }
 
-    // 업데이트 메서드들 (기존과 동일)
     private void updateChildEntities(Resume resume, UpdateResumeRequest request) {
         log.debug("자식 엔티티들 업데이트 시작 - Resume ID: {}", resume.getId());
 
-        updateProjects(resume.getId(), request.getProjects());
-        updateCertifications(resume.getId(), request.getCertifications());
-        updateWorkExperiences(resume.getId(), request.getWorkExperiences());
-        updateEducations(resume.getId(), request.getEducations());
+        updateProjects(resume, request.getProjects());
+        updateCertifications(resume, request.getCertifications());
+        updateWorkExperiences(resume, request.getWorkExperiences());
+        updateEducations(resume, request.getEducations());
 
         log.debug("자식 엔티티들 업데이트 완료 - Resume ID: {}", resume.getId());
     }
 
-    private void updateProjects(Integer resumeId, List<ResumeProjectRequest> projectRequests) {
-        List<ResumeProject> existingProjects = projectRepository.findByResumeId(resumeId);
+    private void updateProjects(Resume resume, List<ResumeProjectRequest> projectRequests) {
+        if (resume.getId() == null) {
+            throw new IllegalStateException("Resume ID cannot be null when updating projects");
+        }
+
+        log.debug("프로젝트 업데이트 시작 - Resume ID: {}", resume.getId());
+
+        List<ResumeProject> existingProjects = projectRepository.findByResumeId(resume.getId());
         Map<Integer, ResumeProject> existingProjectMap = existingProjects.stream()
                 .collect(Collectors.toMap(ResumeProject::getId, project -> project));
 
@@ -285,10 +294,10 @@ public class ResumeService {
                     processedIds.add(request.getId());
                     log.debug("프로젝트 업데이트 - ID: {}, 이름: {}", request.getId(), request.getProjectName());
                 } else {
-                    Resume resume = resumeRepository.findById(resumeId).orElseThrow();
                     ResumeProject newProject = resumeMapper.toProjectEntity(request, resume);
+                    newProject.setResume(resume); // 명시적으로 관계 설정
                     toSave.add(newProject);
-                    log.debug("새 프로젝트 생성 - 이름: {}", request.getProjectName());
+                    log.debug("새 프로젝트 생성 - 이름: {}, Resume ID: {}", request.getProjectName(), resume.getId());
                 }
             }
         }
@@ -297,18 +306,35 @@ public class ResumeService {
                 .filter(project -> !processedIds.contains(project.getId()))
                 .collect(Collectors.toList());
 
-        if (!toSave.isEmpty()) {
-            projectRepository.saveAll(toSave);
-            log.debug("프로젝트 {}개 저장 완료", toSave.size());
-        }
         if (!toDelete.isEmpty()) {
             projectRepository.deleteAll(toDelete);
+            projectRepository.flush();
             log.debug("프로젝트 {}개 삭제 완료", toDelete.size());
+        }
+
+        if (!toSave.isEmpty()) {
+            for (ResumeProject project : toSave) {
+                if (project.getResume() == null || project.getResume().getId() == null) {
+                    throw new IllegalStateException("Resume relationship not properly set for project");
+                }
+            }
+
+            projectRepository.saveAll(toSave);
+            projectRepository.flush();
+            log.debug("프로젝트 {}개 저장 완료", toSave.size());
         }
     }
 
-    private void updateCertifications(Integer resumeId, List<ResumeCertificationRequest> certificationRequests) {
-        List<ResumeCertification> existingCertifications = certificationRepository.findByResumeId(resumeId);
+
+    private void updateCertifications(Resume resume, List<ResumeCertificationRequest> certificationRequests) {
+        // Resume ID 검증
+        if (resume.getId() == null) {
+            throw new IllegalStateException("Resume ID cannot be null when updating certifications");
+        }
+
+        log.debug("자격증 업데이트 시작 - Resume ID: {}", resume.getId());
+
+        List<ResumeCertification> existingCertifications = certificationRepository.findByResumeId(resume.getId());
         Map<Integer, ResumeCertification> existingCertificationMap = existingCertifications.stream()
                 .collect(Collectors.toMap(ResumeCertification::getId, cert -> cert));
 
@@ -319,36 +345,62 @@ public class ResumeService {
         if (certificationRequests != null) {
             for (ResumeCertificationRequest request : certificationRequests) {
                 if (request.getId() != null && existingCertificationMap.containsKey(request.getId())) {
+                    // 기존 자격증 업데이트
                     ResumeCertification existingCertification = existingCertificationMap.get(request.getId());
                     resumeMapper.updateCertificationEntity(existingCertification, request);
                     toSave.add(existingCertification);
                     processedIds.add(request.getId());
                     log.debug("자격증 업데이트 - ID: {}, 이름: {}", request.getId(), request.getCertificationName());
                 } else {
-                    Resume resume = resumeRepository.findById(resumeId).orElseThrow();
+                    // 새 자격증 생성
                     ResumeCertification newCertification = resumeMapper.toCertificationEntity(request, resume);
+
+                    // 명시적으로 resume 관계 설정
+                    newCertification.setResume(resume);
+
                     toSave.add(newCertification);
-                    log.debug("새 자격증 생성 - 이름: {}", request.getCertificationName());
+                    log.debug("새 자격증 생성 - 이름: {}, Resume ID: {}", request.getCertificationName(), resume.getId());
                 }
             }
         }
 
+        // 삭제할 자격증 찾기
         toDelete = existingCertifications.stream()
                 .filter(certification -> !processedIds.contains(certification.getId()))
                 .collect(Collectors.toList());
 
-        if (!toSave.isEmpty()) {
-            certificationRepository.saveAll(toSave);
-            log.debug("자격증 {}개 저장 완료", toSave.size());
-        }
+        // 삭제 먼저 실행
         if (!toDelete.isEmpty()) {
             certificationRepository.deleteAll(toDelete);
+            certificationRepository.flush(); // 즉시 DB에 반영
             log.debug("자격증 {}개 삭제 완료", toDelete.size());
+        }
+
+        // 저장 실행
+        if (!toSave.isEmpty()) {
+            // 각 엔티티의 resume 관계가 올바르게 설정되었는지 검증
+            for (ResumeCertification cert : toSave) {
+                if (cert.getResume() == null || cert.getResume().getId() == null) {
+                    log.error("자격증의 Resume 관계가 설정되지 않음 - 자격증: {}", cert.getCertificationName());
+                    throw new IllegalStateException("Resume relationship not properly set for certification");
+                }
+            }
+
+            certificationRepository.saveAll(toSave);
+            certificationRepository.flush(); // 즉시 DB에 반영
+            log.debug("자격증 {}개 저장 완료", toSave.size());
         }
     }
 
-    private void updateWorkExperiences(Integer resumeId, List<ResumeWorkExperienceRequest> workExperienceRequests) {
-        List<ResumeWorkExperience> existingWorkExperiences = workExperienceRepository.findByResumeId(resumeId);
+
+    private void updateWorkExperiences(Resume resume, List<ResumeWorkExperienceRequest> workExperienceRequests) {
+        if (resume.getId() == null) {
+            throw new IllegalStateException("Resume ID cannot be null when updating work experiences");
+        }
+
+        log.debug("경력 업데이트 시작 - Resume ID: {}", resume.getId());
+
+        List<ResumeWorkExperience> existingWorkExperiences = workExperienceRepository.findByResumeId(resume.getId());
         Map<Integer, ResumeWorkExperience> existingWorkExperienceMap = existingWorkExperiences.stream()
                 .collect(Collectors.toMap(ResumeWorkExperience::getId, work -> work));
 
@@ -365,10 +417,10 @@ public class ResumeService {
                     processedIds.add(request.getId());
                     log.debug("경력 업데이트 - ID: {}, 회사: {}", request.getId(), request.getCompanyName());
                 } else {
-                    Resume resume = resumeRepository.findById(resumeId).orElseThrow();
                     ResumeWorkExperience newWorkExperience = resumeMapper.toWorkExperienceEntity(request, resume);
+                    newWorkExperience.setResume(resume); // 명시적으로 관계 설정
                     toSave.add(newWorkExperience);
-                    log.debug("새 경력 생성 - 회사: {}", request.getCompanyName());
+                    log.debug("새 경력 생성 - 회사: {}, Resume ID: {}", request.getCompanyName(), resume.getId());
                 }
             }
         }
@@ -377,18 +429,33 @@ public class ResumeService {
                 .filter(workExperience -> !processedIds.contains(workExperience.getId()))
                 .collect(Collectors.toList());
 
-        if (!toSave.isEmpty()) {
-            workExperienceRepository.saveAll(toSave);
-            log.debug("경력 {}개 저장 완료", toSave.size());
-        }
         if (!toDelete.isEmpty()) {
             workExperienceRepository.deleteAll(toDelete);
+            workExperienceRepository.flush();
             log.debug("경력 {}개 삭제 완료", toDelete.size());
+        }
+
+        if (!toSave.isEmpty()) {
+            for (ResumeWorkExperience work : toSave) {
+                if (work.getResume() == null || work.getResume().getId() == null) {
+                    throw new IllegalStateException("Resume relationship not properly set for work experience");
+                }
+            }
+
+            workExperienceRepository.saveAll(toSave);
+            workExperienceRepository.flush();
+            log.debug("경력 {}개 저장 완료", toSave.size());
         }
     }
 
-    private void updateEducations(Integer resumeId, List<ResumeEducationRequest> educationRequests) {
-        List<ResumeEducation> existingEducations = educationRepository.findByResumeId(resumeId);
+    private void updateEducations(Resume resume, List<ResumeEducationRequest> educationRequests) {
+        if (resume.getId() == null) {
+            throw new IllegalStateException("Resume ID cannot be null when updating educations");
+        }
+
+        log.debug("학력 업데이트 시작 - Resume ID: {}", resume.getId());
+
+        List<ResumeEducation> existingEducations = educationRepository.findByResumeId(resume.getId());
         Map<Integer, ResumeEducation> existingEducationMap = existingEducations.stream()
                 .collect(Collectors.toMap(ResumeEducation::getId, edu -> edu));
 
@@ -405,10 +472,10 @@ public class ResumeService {
                     processedIds.add(request.getId());
                     log.debug("학력 업데이트 - ID: {}, 학교: {}", request.getId(), request.getSchoolName());
                 } else {
-                    Resume resume = resumeRepository.findById(resumeId).orElseThrow();
                     ResumeEducation newEducation = resumeMapper.toEducationEntity(request, resume);
+                    newEducation.setResume(resume); // 명시적으로 관계 설정
                     toSave.add(newEducation);
-                    log.debug("새 학력 생성 - 학교: {}", request.getSchoolName());
+                    log.debug("새 학력 생성 - 학교: {}, Resume ID: {}", request.getSchoolName(), resume.getId());
                 }
             }
         }
@@ -417,13 +484,22 @@ public class ResumeService {
                 .filter(education -> !processedIds.contains(education.getId()))
                 .collect(Collectors.toList());
 
-        if (!toSave.isEmpty()) {
-            educationRepository.saveAll(toSave);
-            log.debug("학력 {}개 저장 완료", toSave.size());
-        }
         if (!toDelete.isEmpty()) {
             educationRepository.deleteAll(toDelete);
+            educationRepository.flush();
             log.debug("학력 {}개 삭제 완료", toDelete.size());
+        }
+
+        if (!toSave.isEmpty()) {
+            for (ResumeEducation education : toSave) {
+                if (education.getResume() == null || education.getResume().getId() == null) {
+                    throw new IllegalStateException("Resume relationship not properly set for education");
+                }
+            }
+
+            educationRepository.saveAll(toSave);
+            educationRepository.flush();
+            log.debug("학력 {}개 저장 완료", toSave.size());
         }
     }
 }

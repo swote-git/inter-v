@@ -19,22 +19,16 @@ public class ResumeWorkExperience extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "resume_id")
     private Resume resume;
 
     private String companyName;
-
     private String position;
-
     private String department;
-
     private String location;
-
     private LocalDate startDate;
-
     private LocalDate endDate;
-
     private Boolean currentlyWorking;
 
     @Column(columnDefinition = "TEXT")

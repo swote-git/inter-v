@@ -19,17 +19,13 @@ public class ResumeCertification extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "resume_id")
     private Resume resume;
 
     private String certificationName;
-
     private String issuingOrganization;
-
     private LocalDate acquiredDate;
-
     private LocalDate expiryDate;
-
     private Boolean noExpiry;
 }
