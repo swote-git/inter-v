@@ -49,9 +49,6 @@ public class User extends BaseEntity {
 
     private String name; // 테스트용 추가
 
-    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Resume resume;
-
     @ManyToMany
     @JoinTable(
             name = "user_favorite_questions",
