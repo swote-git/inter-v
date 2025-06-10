@@ -2,6 +2,7 @@ package dev.swote.interv.util.security;
 
 import dev.swote.interv.domain.user.entity.User;
 import dev.swote.interv.domain.user.repository.UserRepository;
+import dev.swote.interv.interceptor.CurrentUser;
 import dev.swote.interv.service.auth.AuthService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -68,6 +69,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(user, null, authorities);
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                    // CurrentUser 객체 생성 및 request attribute로 설정
+                    CurrentUser currentUser = new CurrentUser(userId);
+                    request.setAttribute("currentUser", currentUser);
 
                     // 현재 사용자 ID를 요청 속성으로 설정 (기존 인터셉터와 통합)
                     request.setAttribute("AUTH_USER_ID", userId.toString());
