@@ -1,3 +1,4 @@
+// ResumeWorkExperienceRequest.java - ID 필드 추가
 package dev.swote.interv.domain.resume.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -16,6 +17,12 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @Schema(description = "경력 사항 요청")
 public class ResumeWorkExperienceRequest {
+
+    @Schema(
+            description = "경력 ID (수정시에만 사용, 신규 생성시에는 null)",
+            example = "1"
+    )
+    private Integer id;
 
     @NotBlank(message = "회사명은 필수입니다")
     @Size(max = 100, message = "회사명은 100자 이하로 입력해주세요")
@@ -45,12 +52,10 @@ public class ResumeWorkExperienceRequest {
     private Boolean currentlyWorking;
 
     @Size(max = 2000, message = "담당업무는 2000자 이하로 입력해주세요")
-    @Schema(description = "담당업무",
-            example = "• Spring Boot 기반 RESTful API 개발\\n• MySQL 데이터베이스 설계 및 최적화\\n• AWS 클라우드 인프라 구축 및 운영\\n• 코드 리뷰 및 팀 개발 프로세스 개선")
+    @Schema(description = "담당업무", example = "Spring Boot 기반 RESTful API 개발")
     private String responsibilities;
 
     @Size(max = 2000, message = "성과는 2000자 이하로 입력해주세요")
-    @Schema(description = "주요 성과",
-            example = "• 기존 시스템 대비 API 응답시간 30% 개선\\n• 서버 비용 20% 절감\\n• 신규 기능 개발로 월간 활성 사용자 15% 증가")
+    @Schema(description = "주요 성과", example = "기존 시스템 대비 API 응답시간 30% 개선")
     private String achievements;
 }

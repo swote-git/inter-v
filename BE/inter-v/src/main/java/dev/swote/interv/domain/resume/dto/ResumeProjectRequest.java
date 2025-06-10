@@ -1,5 +1,7 @@
+// ResumeProjectRequest.java - ID 필드 추가
 package dev.swote.interv.domain.resume.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -17,6 +19,13 @@ import java.time.LocalDate;
 @Schema(description = "프로젝트 경험 요청 DTO")
 public class ResumeProjectRequest {
 
+    @JsonProperty("projectId")
+    @Schema(
+            description = "프로젝트 ID (수정시에만 사용, 신규 생성시에는 null)",
+            example = "1"
+    )
+    private Integer id;
+
     @NotBlank(message = "프로젝트명은 필수입니다")
     @Size(max = 100, message = "프로젝트명은 100자 이하로 입력해주세요")
     @Schema(
@@ -29,38 +38,20 @@ public class ResumeProjectRequest {
 
     @Size(max = 2000, message = "프로젝트 설명은 2000자 이하로 입력해주세요")
     @Schema(
-            description = "프로젝트 상세 설명. 사용 기술, 담당 역할, 성과 등을 포함",
-            example = """
-                Spring Boot와 React를 활용한 B2C 온라인 쇼핑몰 개발 프로젝트입니다.
-                
-                • 담당 역할: 백엔드 API 개발, 결제 시스템 연동
-                • 사용 기술: Spring Boot, MySQL, Redis, AWS EC2
-                • 주요 성과: 월 평균 1만 건의 주문 처리, 결제 성공률 99.5% 달성
-                """,
+            description = "프로젝트 상세 설명",
+            example = "Spring Boot와 React를 활용한 B2C 온라인 쇼핑몰 개발",
             maxLength = 2000
     )
     private String description;
 
-    @Schema(
-            description = "프로젝트 시작일",
-            example = "2023-01-01",
-            type = "string",
-            format = "date"
-    )
+    @Schema(description = "프로젝트 시작일", example = "2023-01-01")
     private LocalDate startDate;
 
-    @Schema(
-            description = "프로젝트 종료일 (진행 중인 경우 null)",
-            example = "2023-06-30",
-            type = "string",
-            format = "date"
-    )
+    @Schema(description = "프로젝트 종료일", example = "2023-06-30")
     private LocalDate endDate;
 
-    @Schema(
-            description = "현재 진행 중 여부",
-            example = "false",
-            defaultValue = "false"
-    )
+    @Schema(description = "현재 진행 중 여부", example = "false")
     private Boolean inProgress;
 }
+
+

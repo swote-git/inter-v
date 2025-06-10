@@ -1,5 +1,6 @@
 package dev.swote.interv.domain.interview.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import dev.swote.interv.domain.interview.entity.InterviewMode;
 import dev.swote.interv.domain.interview.entity.InterviewStatus;
 import dev.swote.interv.domain.interview.entity.InterviewType;
@@ -52,6 +53,7 @@ public class InterviewListResponse {
     )
     private InterviewStatus status;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     @Schema(
             description = "면접 시작 시간",
             example = "2024-06-01T14:30:00",
@@ -60,6 +62,7 @@ public class InterviewListResponse {
     )
     private LocalDateTime startTime;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     @Schema(
             description = "면접 종료 시간",
             example = "2024-06-01T15:15:00",
@@ -74,6 +77,7 @@ public class InterviewListResponse {
     @Schema(description = "답변 완료한 질문 개수", example = "5", minimum = "0")
     private Integer answeredQuestionCount;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     @Schema(
             description = "면접 세션 생성일시",
             example = "2024-06-01T14:00:00",

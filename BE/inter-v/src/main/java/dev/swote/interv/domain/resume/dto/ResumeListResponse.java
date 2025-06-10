@@ -1,5 +1,6 @@
 package dev.swote.interv.domain.resume.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import dev.swote.interv.domain.resume.entity.ResumeStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -57,6 +58,7 @@ public class ResumeListResponse {
     @Schema(description = "학력 사항 개수", example = "1", minimum = "0")
     private int educationCount;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     @Schema(
             description = "이력서 생성일시",
             example = "2024-06-01T10:30:00",
@@ -65,6 +67,7 @@ public class ResumeListResponse {
     )
     private LocalDateTime createdAt;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     @Schema(
             description = "마지막 수정일시",
             example = "2024-06-01T15:45:00",

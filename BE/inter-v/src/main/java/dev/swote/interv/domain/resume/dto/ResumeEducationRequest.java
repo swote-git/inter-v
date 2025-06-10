@@ -1,5 +1,6 @@
 package dev.swote.interv.domain.resume.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -16,6 +17,13 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @Schema(description = "학력 사항 요청")
 public class ResumeEducationRequest {
+
+    @JsonProperty("educationId")
+    @Schema(
+            description = "학력 ID (수정시에만 사용, 신규 생성시에는 null)",
+            example = "1"
+    )
+    private Integer id;
 
     @NotBlank(message = "학교구분은 필수입니다")
     @Size(max = 50, message = "학교구분은 50자 이하로 입력해주세요")

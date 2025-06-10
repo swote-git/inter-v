@@ -1,5 +1,6 @@
 package dev.swote.interv.domain.resume.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,6 +28,7 @@ public class ResumeProjectResponse {
     )
     private String description;
 
+    @JsonFormat(pattern = "yyyy-MM-dd")
     @Schema(
             description = "프로젝트 시작일",
             example = "2023-01-01",
@@ -35,6 +37,7 @@ public class ResumeProjectResponse {
     )
     private LocalDate startDate;
 
+    @JsonFormat(pattern = "yyyy-MM-dd")
     @Schema(
             description = "프로젝트 종료일",
             example = "2023-06-30",

@@ -1,5 +1,6 @@
 package dev.swote.interv.domain.resume.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -32,6 +33,7 @@ public class UserSimpleResponse {
     )
     private String nickname;
 
+    @JsonFormat(pattern = "yyyy-MM-dd")
     @Schema(
             description = "생년월일",
             example = "1990-01-01",

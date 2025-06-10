@@ -1,5 +1,6 @@
 package dev.swote.interv.domain.resume.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -30,9 +31,11 @@ public class ResumeEducationResponse {
     @Schema(description = "전공", example = "컴퓨터공학과")
     private String major;
 
+    @JsonFormat(pattern = "yyyy-MM-dd")
     @Schema(description = "입학일", example = "2017-03-01")
     private LocalDate enrollmentDate;
 
+    @JsonFormat(pattern = "yyyy-MM-dd")
     @Schema(description = "졸업일", example = "2021-02-28")
     private LocalDate graduationDate;
 

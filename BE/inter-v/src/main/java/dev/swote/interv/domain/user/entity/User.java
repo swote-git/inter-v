@@ -7,6 +7,7 @@ import java.util.Set;
 
 import dev.swote.interv.domain.BaseEntity;
 import dev.swote.interv.domain.interview.entity.Question;
+import dev.swote.interv.domain.resume.entity.Resume;
 import dev.swote.interv.domain.user.VO.RegisterVO;
 import dev.swote.interv.util.security.CustomPasswordEncoder;
 import jakarta.persistence.*;
@@ -47,6 +48,9 @@ public class User extends BaseEntity {
     private LocalDate birthDate;
 
     private String name; // 테스트용 추가
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Resume resume;
 
     @ManyToMany
     @JoinTable(

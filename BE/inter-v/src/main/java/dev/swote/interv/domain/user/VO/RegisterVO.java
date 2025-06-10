@@ -1,6 +1,7 @@
 package dev.swote.interv.domain.user.VO;
 import java.time.LocalDate;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -33,6 +34,7 @@ public class RegisterVO {
     @Pattern(regexp = "^\\+[0-9]+$", message = "전화번호 형식을 지켜주세요.")
     private String phoneNumber;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     @NotNull(message = "생년월일을 입력해주세요.")
     private LocalDate birthDate;
 }

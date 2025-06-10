@@ -35,7 +35,6 @@ public class ResumeMapper {
                 .build();
     }
 
-    // Entity -> List Response DTO 변환 (목록용)
     public ResumeListResponse toListResponse(Resume resume) {
         if (resume == null) {
             return null;
@@ -57,7 +56,6 @@ public class ResumeMapper {
                 .build();
     }
 
-    // User -> UserSimpleResponse 변환
     private UserSimpleResponse toUserSimpleResponse(User user) {
         if (user == null) {
             return null;
@@ -71,7 +69,6 @@ public class ResumeMapper {
                 .build();
     }
 
-    // ResumeProject List -> ResumeProjectResponse List 변환
     private List<ResumeProjectResponse> toProjectResponseList(List<ResumeProject> projects) {
         if (projects == null) {
             return null;
@@ -82,7 +79,6 @@ public class ResumeMapper {
                 .collect(Collectors.toList());
     }
 
-    // ResumeProject -> ResumeProjectResponse 변환
     private ResumeProjectResponse toProjectResponse(ResumeProject project) {
         if (project == null) {
             return null;
@@ -98,7 +94,6 @@ public class ResumeMapper {
                 .build();
     }
 
-    // ResumeCertification List -> ResumeCertificationResponse List 변환
     private List<ResumeCertificationResponse> toCertificationResponseList(List<ResumeCertification> certifications) {
         if (certifications == null) {
             return null;
@@ -109,7 +104,6 @@ public class ResumeMapper {
                 .collect(Collectors.toList());
     }
 
-    // ResumeCertification -> ResumeCertificationResponse 변환
     private ResumeCertificationResponse toCertificationResponse(ResumeCertification certification) {
         if (certification == null) {
             return null;
@@ -125,7 +119,6 @@ public class ResumeMapper {
                 .build();
     }
 
-    // ResumeWorkExperience List -> ResumeWorkExperienceResponse List 변환
     private List<ResumeWorkExperienceResponse> toWorkExperienceResponseList(List<ResumeWorkExperience> workExperiences) {
         if (workExperiences == null) {
             return null;
@@ -136,7 +129,6 @@ public class ResumeMapper {
                 .collect(Collectors.toList());
     }
 
-    // ResumeWorkExperience -> ResumeWorkExperienceResponse 변환
     private ResumeWorkExperienceResponse toWorkExperienceResponse(ResumeWorkExperience workExperience) {
         if (workExperience == null) {
             return null;
@@ -156,7 +148,6 @@ public class ResumeMapper {
                 .build();
     }
 
-    // ResumeEducation List -> ResumeEducationResponse List 변환
     private List<ResumeEducationResponse> toEducationResponseList(List<ResumeEducation> educations) {
         if (educations == null) {
             return null;
@@ -167,7 +158,6 @@ public class ResumeMapper {
                 .collect(Collectors.toList());
     }
 
-    // ResumeEducation -> ResumeEducationResponse 변환
     private ResumeEducationResponse toEducationResponse(ResumeEducation education) {
         if (education == null) {
             return null;
@@ -217,7 +207,7 @@ public class ResumeMapper {
         }
     }
 
-    // Request DTO -> Entity 변환 (자식 엔티티들)
+    // 새로운 생성 메서드들
     public ResumeProject toProjectEntity(ResumeProjectRequest request, Resume resume) {
         if (request == null) {
             return null;
@@ -283,5 +273,61 @@ public class ResumeMapper {
                 .inProgress(request.getInProgress())
                 .gpa(request.getGpa())
                 .build();
+    }
+
+    // 새로운 업데이트 메서드들
+    public void updateProjectEntity(ResumeProject project, ResumeProjectRequest request) {
+        if (project == null || request == null) {
+            return;
+        }
+
+        project.setProjectName(request.getProjectName());
+        project.setDescription(request.getDescription());
+        project.setStartDate(request.getStartDate());
+        project.setEndDate(request.getEndDate());
+        project.setInProgress(request.getInProgress());
+    }
+
+    public void updateCertificationEntity(ResumeCertification certification, ResumeCertificationRequest request) {
+        if (certification == null || request == null) {
+            return;
+        }
+
+        certification.setCertificationName(request.getCertificationName());
+        certification.setIssuingOrganization(request.getIssuingOrganization());
+        certification.setAcquiredDate(request.getAcquiredDate());
+        certification.setExpiryDate(request.getExpiryDate());
+        certification.setNoExpiry(request.getNoExpiry());
+    }
+
+    public void updateWorkExperienceEntity(ResumeWorkExperience workExperience, ResumeWorkExperienceRequest request) {
+        if (workExperience == null || request == null) {
+            return;
+        }
+
+        workExperience.setCompanyName(request.getCompanyName());
+        workExperience.setPosition(request.getPosition());
+        workExperience.setDepartment(request.getDepartment());
+        workExperience.setLocation(request.getLocation());
+        workExperience.setStartDate(request.getStartDate());
+        workExperience.setEndDate(request.getEndDate());
+        workExperience.setCurrentlyWorking(request.getCurrentlyWorking());
+        workExperience.setResponsibilities(request.getResponsibilities());
+        workExperience.setAchievements(request.getAchievements());
+    }
+
+    public void updateEducationEntity(ResumeEducation education, ResumeEducationRequest request) {
+        if (education == null || request == null) {
+            return;
+        }
+
+        education.setSchoolType(request.getSchoolType());
+        education.setSchoolName(request.getSchoolName());
+        education.setLocation(request.getLocation());
+        education.setMajor(request.getMajor());
+        education.setEnrollmentDate(request.getEnrollmentDate());
+        education.setGraduationDate(request.getGraduationDate());
+        education.setInProgress(request.getInProgress());
+        education.setGpa(request.getGpa());
     }
 }

@@ -116,7 +116,7 @@ spring:
         format_sql: true
 
 jwt:
-  secret:
+  secret: 
   access-token-validity: 3600000
   refresh-token-validity: 604800000
 
@@ -183,7 +183,10 @@ spring:
         order_updates: true
   jackson:
     serialization:
+      write-dates-as-timestamps: false
       indent_output: false
+    date-format: yyyy-MM-dd
+
 
 # 운영 환경 CORS 설정 (중요!)
 cors:
