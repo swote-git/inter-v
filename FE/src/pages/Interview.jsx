@@ -1,235 +1,166 @@
 import React, { useState, useEffect, useRef } from 'react';
+import {
+  createInterview,
+  getInterviewQuestions,
+  getNextQuestion,
+  submitAnswer,
+} from '../utils/api';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Header from '../partials/Header';
 import Footer from '../partials/Footer';
 
+/* ───── 로그인 여부(= 토큰 존재) 체크 ───── */
+const hasToken = () => !!localStorage.getItem('accessToken');
+
 function Interview() {
   const location = useLocation();
-  const navigate = useNavigate();
-  const [isRecording, setIsRecording] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const navigate  = useNavigate();
+
+  /* ───────── 상태 ───────── */
+  const [isRecording,  setIsRecording]  = useState(false);
+  const [isAnalyzing,  setIsAnalyzing]  = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(null);
-  const [timer, setTimer] = useState(0);
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [feedback, setFeedback] = useState(null);
-  const [interviewMode, setInterviewMode] = useState('practice'); // 'practice' or 'real'
-  const [interviewType, setInterviewType] = useState('technical'); // 'technical', 'behavioral', 'general'
+  const [timer,        setTimer]        = useState(0);
+  const [feedback,     setFeedback]     = useState(null);
+
+  const [interviewMode, setInterviewMode] = useState('practice');   // practice | real
+  const [interviewType, setInterviewType] = useState('technical');  // technical | behavioral | general
   const [questionCount, setQuestionCount] = useState(5);
+
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [interviewStarted, setInterviewStarted] = useState(false);
-  const [interviewEnded, setInterviewEnded] = useState(false);
-  const [answers, setAnswers] = useState([]);
-  const [showHint, setShowHint] = useState(false);
-  const timerRef = useRef(null);
+  const [interviewStarted,     setInterviewStarted]     = useState(false);
+  const [interviewEnded,       setInterviewEnded]       = useState(false);
+  const [showHint,             setShowHint]             = useState(false);
+  const [interviewId,          setInterviewId]          = useState(null);
+
+  /* ───────── ref ───────── */
+  const timerRef         = useRef(null);
   const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  const audioChunksRef   = useRef([]);
 
-  // 면접 유형별 질문 목록
-  const questions = {
-    technical: [
-      {
-        id: 1,
-        question: "REST API의 특징과 장단점에 대해 설명해주세요.",
-        category: "technical",
-        difficulty: "hard",
-        hint: "REST의 주요 원칙과 HTTP 메서드의 활용을 중심으로 설명해보세요."
-      },
-      {
-        id: 2,
-        question: "마이크로서비스 아키텍처의 장단점은 무엇인가요?",
-        category: "technical",
-        difficulty: "hard",
-        hint: "서비스 분리, 독립적 배포, 확장성 측면에서 설명해보세요."
-      },
-      {
-        id: 3,
-        question: "JWT와 Session 기반 인증의 차이점은 무엇인가요?",
-        category: "technical",
-        difficulty: "hard",
-        hint: "상태 유지, 보안, 확장성 측면에서 비교해보세요."
-      }
-    ],
-    behavioral: [
-      {
-        id: 4,
-        question: "팀 프로젝트에서 갈등이 있었을 때 어떻게 해결했나요?",
-        category: "behavioral",
-        difficulty: "medium",
-        hint: "구체적인 상황, 본인의 역할, 해결 과정을 순차적으로 설명해보세요."
-      },
-      {
-        id: 5,
-        question: "실패했던 프로젝트 경험이 있다면, 그로부터 배운 점은 무엇인가요?",
-        category: "behavioral",
-        difficulty: "hard",
-        hint: "실패의 원인, 대처 방법, 향후 개선점을 중심으로 설명해보세요."
-      },
-      {
-        id: 6,
-        question: "리더십을 발휘했던 경험이 있다면 말씀해주세요.",
-        category: "behavioral",
-        difficulty: "hard",
-        hint: "팀원들의 동기부여, 의사소통, 목표 달성 과정을 설명해보세요."
-      }
-    ],
-    general: [
-      {
-        id: 7,
-        question: "자기소개를 해주세요.",
-        category: "general",
-        difficulty: "easy",
-        hint: "경력, 기술 스택, 강점을 중심으로 간단명료하게 설명해보세요."
-      },
-      {
-        id: 8,
-        question: "지원 동기를 말씀해주세요.",
-        category: "general",
-        difficulty: "medium",
-        hint: "회사의 비전, 본인의 경험, 성장 가능성을 연결지어 설명해보세요."
-      },
-      {
-        id: 9,
-        question: "앞으로의 커리어 목표는 무엇인가요?",
-        category: "general",
-        difficulty: "medium",
-        hint: "단기/장기 목표와 이를 달성하기 위한 구체적인 계획을 설명해보세요."
-      }
-    ]
-  };
-
+  /* ───────── 마운트 시 URL 파라미터 확인 ───────── */
   useEffect(() => {
-    // URL에서 질문 ID 가져오기
-    const params = new URLSearchParams(location.search);
+    const params     = new URLSearchParams(location.search);
     const questionId = params.get('question');
-    
     if (questionId) {
-      // 모든 카테고리에서 질문 찾기
-      let foundQuestion = null;
-      Object.values(questions).forEach(categoryQuestions => {
-        const question = categoryQuestions.find(q => q.id === parseInt(questionId));
-        if (question) foundQuestion = question;
-      });
-      
-      if (foundQuestion) {
-        setCurrentQuestion(foundQuestion);
-        setInterviewStarted(true);
-      }
+      // 단일 미리보기: 질문 API로 직접 가져오는 방법을 쓰려면 여기서 호출
+      // 현재는 인터뷰 전체 흐름에서 받아오기 때문에 생략
     }
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
+    return () => timerRef.current && clearInterval(timerRef.current);
   }, [location]);
 
-  const startTimer = () => {
-    setIsTimerRunning(true);
-    timerRef.current = setInterval(() => {
-      setTimer(prev => prev + 1);
-    }, 1000);
-  };
+  /* ───────── 타이머 ───────── */
+  const startTimer = () =>
+    (timerRef.current = setInterval(() => setTimer(t => t + 1), 1000));
+  const stopTimer  = () => clearInterval(timerRef.current);
+  const fmt        = s =>
+    `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
-  const stopTimer = () => {
-    setIsTimerRunning(false);
-    clearInterval(timerRef.current);
-  };
-
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const startRecording = async () => {
+  /* ───────── 녹음 ───────── */
+  const startRec = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
-      };
-
-      mediaRecorder.start();
+      const rec    = new MediaRecorder(stream);
+      mediaRecorderRef.current = rec;
+      audioChunksRef.current   = [];
+      rec.ondataavailable      = e => audioChunksRef.current.push(e.data);
+      rec.start();
       setIsRecording(true);
       startTimer();
-    } catch (error) {
-      console.error('Error accessing microphone:', error);
+    } catch (e) {
+      console.error('mic error', e);
+      alert('마이크 사용을 허용해 주세요.');
     }
   };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      stopTimer();
-      analyzeAnswer();
-    }
+  const stopRec = () => {
+    if (!isRecording) return;
+    mediaRecorderRef.current.stop();
+    setIsRecording(false);
+    stopTimer();
+    analyzeAnswer();
   };
 
-  const analyzeAnswer = () => {
+  /* ───────── 답변 분석 ───────── */
+  const analyzeAnswer = async () => {
+    if (!currentQuestion) return;
     setIsAnalyzing(true);
-    // TODO: 실제 음성 분석 및 피드백 생성 로직 구현
-    setTimeout(() => {
-      setFeedback({
-        strengths: [
-          "명확한 구조로 답변을 전개했습니다.",
-          "구체적인 예시를 잘 활용했습니다.",
-          "자신감 있게 답변했습니다."
-        ],
-        improvements: [
-          "답변 시간을 좀 더 조절해보세요.",
-          "기술적 용어를 더 정확하게 사용해보세요.",
-          "결론을 더 명확하게 제시해보세요."
-        ],
-        score: 85
+    try {
+      const { data } = await submitAnswer(currentQuestion.id, {
+        content: 'STT 결과 혹은 입력 텍스트', // TODO: 실제 STT 결과로 교체
       });
+      setFeedback({
+        strengths:    data.data.strengths,
+        improvements: data.data.improvements,
+        score:        data.data.score,
+      });
+    } catch (e) {
+      console.error(e);
+      alert('답변 전송/평가에 실패했습니다.');
+    } finally {
       setIsAnalyzing(false);
-    }, 2000);
-  };
-
-  const startNewInterview = () => {
-    setInterviewStarted(true);
-    setInterviewEnded(false);
-    setCurrentQuestionIndex(0);
-    setAnswers([]);
-    setTimer(0);
-    setFeedback(null);
-    setShowHint(false);
-    
-    // 선택된 면접 유형의 첫 번째 질문 설정
-    const selectedQuestions = questions[interviewType];
-    setCurrentQuestion(selectedQuestions[0]);
-  };
-
-  const handleNextQuestion = () => {
-    const selectedQuestions = questions[interviewType];
-    const nextIndex = currentQuestionIndex + 1;
-    
-    if (nextIndex < questionCount) {
-      setCurrentQuestionIndex(nextIndex);
-      setCurrentQuestion(selectedQuestions[nextIndex]);
-      setFeedback(null);
-      setShowHint(false);
-      setTimer(0);
-    } else {
-      setInterviewEnded(true);
     }
   };
 
-  const handlePreviousQuestion = () => {
-    if (currentQuestionIndex > 0) {
-      const prevIndex = currentQuestionIndex - 1;
-      setCurrentQuestionIndex(prevIndex);
-      setCurrentQuestion(questions[interviewType][prevIndex]);
+  /* ───────── 인터뷰 세션 시작 ───────── */
+  const startNewInterview = async () => {
+    if (!hasToken()) {
+      alert('먼저 로그인 해주세요.');
+      return;
+    }
+
+    try {
+      const payload = {
+        // TODO: 필요 시 resumeId, positionId 등 추가
+        type:          'TEXT',
+        mode:          interviewMode.toUpperCase(),   // PRACTICE | REAL
+        questionCount: Number(questionCount),
+        useAI:         true,
+        questionIds:   [],
+        difficultyLevel: 1,
+      };
+
+      const { data } = await createInterview(payload);
+      const id = data.data.id;
+      setInterviewId(id);
+
+      const { data: qRes } = await getInterviewQuestions(id);
+      setCurrentQuestion(qRes.data[0]);
+
+      // 로컬 상태 초기화
+      setInterviewStarted(true);
+      setInterviewEnded(false);
+      setCurrentQuestionIndex(0);
+      setTimer(0);
       setFeedback(null);
       setShowHint(false);
-      setTimer(0);
+    } catch (e) {
+      console.error(e);
+      alert(e.response?.data?.message || '인터뷰 세션 생성 실패');
     }
   };
 
+  /* ───────── 다음 질문 ───────── */
+  const nextQuestion = async () => {
+    try {
+      const { data } = await getNextQuestion(interviewId);
+      if (data.data) {
+        setCurrentQuestion(data.data);
+        setCurrentQuestionIndex(i => i + 1);
+        setFeedback(null);
+        setShowHint(false);
+        setTimer(0);
+      } else {
+        setInterviewEnded(true);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  /* (필요 시) 이전 질문 버튼용 – 서버에 저장해 두지 않았다면 캐싱 로직이 더 필요 */
+  const prevQuestion = () => alert('이전 질문 기능은 아직 구현되지 않았습니다.');
+
+  /* ───────── JSX ───────── */
   return (
     <div className="flex flex-col min-h-screen overflow-hidden">
       <Header />
@@ -241,205 +172,160 @@ function Interview() {
               <div className="max-w-3xl mx-auto">
                 <h1 className="h2 mb-8">모의 면접</h1>
 
-                {!interviewStarted ? (
-                  // 면접 시작 전 설정 화면
-                  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 shadow-lg">
-                    <div className="space-y-6">
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300">
-                          면접 모드
-                        </label>
-                        <div className="grid grid-cols-2 gap-4">
+                {/* ───────── 설정 화면 ───────── */}
+                {!interviewStarted && (
+                  <div className="bg-gray-800/50 rounded-xl p-6 space-y-6">
+                    {/* 모드 선택 */}
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">
+                        면접 모드
+                      </label>
+                      <div className="grid grid-cols-2 gap-4">
+                        {['practice', 'real'].map(m => (
                           <button
+                            key={m}
                             className={`btn w-full ${
-                              interviewMode === 'practice'
+                              interviewMode === m
                                 ? 'bg-purple-600 text-white'
                                 : 'bg-gray-700/50 text-gray-300'
                             }`}
-                            onClick={() => setInterviewMode('practice')}
+                            onClick={() => setInterviewMode(m)}
                           >
-                            연습 모드
+                            {m === 'practice' ? '연습 모드' : '실전 모드'}
                           </button>
-                          <button
-                            className={`btn w-full ${
-                              interviewMode === 'real'
-                                ? 'bg-purple-600 text-white'
-                                : 'bg-gray-700/50 text-gray-300'
-                            }`}
-                            onClick={() => setInterviewMode('real')}
-                          >
-                            실전 모드
-                          </button>
-                        </div>
+                        ))}
                       </div>
+                    </div>
 
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300">
-                          면접 유형
-                        </label>
-                        <select
-                          className="form-select w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          value={interviewType}
-                          onChange={(e) => setInterviewType(e.target.value)}
-                        >
-                          <option value="technical">기술 면접</option>
-                          <option value="behavioral">행동 면접</option>
-                          <option value="general">일반 면접</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-300">
-                          질문 개수
-                        </label>
-                        <select
-                          className="form-select w-full bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500"
-                          value={questionCount}
-                          onChange={(e) => setQuestionCount(Number(e.target.value))}
-                        >
-                          <option value="3">3개</option>
-                          <option value="5">5개</option>
-                          <option value="7">7개</option>
-                        </select>
-                      </div>
-
-                      <button
-                        className="btn w-full bg-purple-600 text-white hover:bg-purple-700"
-                        onClick={startNewInterview}
+                    {/* 유형 선택 */}
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">
+                        면접 유형
+                      </label>
+                      <select
+                        className="form-select w-full bg-gray-700/50 border-gray-600 text-white"
+                        value={interviewType}
+                        onChange={e => setInterviewType(e.target.value)}
                       >
-                        면접 시작하기
-                      </button>
+                        <option value="technical">기술 면접</option>
+                        <option value="behavioral">행동 면접</option>
+                        <option value="general">일반 면접</option>
+                      </select>
                     </div>
-                  </div>
-                ) : interviewEnded ? (
-                  // 면접 종료 화면
-                  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 shadow-lg">
-                    <h2 className="h3 mb-6 text-center">면접이 종료되었습니다</h2>
-                    <div className="space-y-6">
-                      <div className="bg-gray-700/50 rounded-lg p-4">
-                        <h3 className="text-lg font-semibold mb-4">전체 피드백</h3>
-                        <div className="space-y-4">
-                          {answers.map((answer, index) => (
-                            <div key={index} className="border-b border-gray-600 pb-4">
-                              <p className="text-gray-300 mb-2">Q: {answer.question}</p>
-                              <p className="text-white mb-2">A: {answer.answer}</p>
-                              <p className="text-sm text-gray-400">점수: {answer.score}점</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex space-x-4">
-                        <button
-                          className="btn flex-1 bg-purple-600 text-white hover:bg-purple-700"
-                          onClick={() => navigate('/questions')}
-                        >
-                          질문 목록으로
-                        </button>
-                        <button
-                          className="btn flex-1 bg-gray-700 text-white hover:bg-gray-600"
-                          onClick={startNewInterview}
-                        >
-                          새로운 면접 시작
-                        </button>
-                      </div>
+
+                    {/* 질문 개수 */}
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">
+                        질문 개수
+                      </label>
+                      <select
+                        className="form-select w-full bg-gray-700/50 border-gray-600 text-white"
+                        value={questionCount}
+                        onChange={e => setQuestionCount(Number(e.target.value))}
+                      >
+                        {[3, 5, 7].map(n => (
+                          <option key={n} value={n}>
+                            {n}개
+                          </option>
+                        ))}
+                      </select>
                     </div>
+
+                    {/* 시작 버튼 */}
+                    <button
+                      className="btn w-full bg-purple-600 text-white hover:bg-purple-700"
+                      onClick={startNewInterview}
+                    >
+                      면접 시작하기
+                    </button>
                   </div>
-                ) : (
-                  // 면접 진행 화면
+                )}
+
+                {/* ───────── 종료 화면 ───────── */}
+                {interviewStarted && interviewEnded && (
+                  <div className="bg-gray-800/50 rounded-xl p-6 space-y-6">
+                    <h2 className="h3 text-center">면접이 종료되었습니다</h2>
+                    <button
+                      className="btn w-full bg-purple-600 text-white"
+                      onClick={() => navigate('/')}
+                    >
+                      홈으로
+                    </button>
+                  </div>
+                )}
+
+                {/* ───────── 진행 화면 ───────── */}
+                {interviewStarted && !interviewEnded && (
                   <div className="space-y-6">
                     {/* 타이머 */}
-                    <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700/50 shadow-lg text-center">
-                      <div className="text-3xl font-bold text-white mb-2">
-                        {formatTime(timer)}
-                      </div>
-                      <div className="text-sm text-gray-400">
-                        {currentQuestionIndex + 1} / {questionCount} 질문
-                      </div>
-                    </div>
+                    <div className="text-center text-3xl text-white">{fmt(timer)}</div>
 
                     {/* 질문 카드 */}
-                    <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 shadow-lg">
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-start">
-                          <h2 className="text-xl font-semibold text-white">
-                            {currentQuestion?.question}
-                          </h2>
-                          <button
-                            className="text-gray-400 hover:text-white"
-                            onClick={() => setShowHint(!showHint)}
-                          >
-                            {showHint ? '힌트 숨기기' : '힌트 보기'}
-                          </button>
-                        </div>
-                        
-                        {showHint && (
-                          <div className="bg-gray-700/50 rounded-lg p-4">
-                            <p className="text-gray-300">{currentQuestion?.hint}</p>
-                          </div>
-                        )}
-
-                        <div className="flex justify-center space-x-4">
-                          {!isRecording ? (
-                            <button
-                              className="btn bg-purple-600 text-white hover:bg-purple-700"
-                              onClick={startRecording}
-                            >
-                              답변 시작
-                            </button>
-                          ) : (
-                            <button
-                              className="btn bg-red-600 text-white hover:bg-red-700"
-                              onClick={stopRecording}
-                            >
-                              답변 종료
-                            </button>
-                          )}
-                        </div>
+                    <div className="bg-gray-800/50 rounded-xl p-6">
+                      <div className="flex justify-between">
+                        <h2 className="text-xl text-white">
+                          {currentQuestion?.question || '질문을 불러오는 중...'}
+                        </h2>
+                        <button
+                          className="text-gray-400"
+                          onClick={() => setShowHint(!showHint)}
+                        >
+                          {showHint ? '힌트 숨기기' : '힌트 보기'}
+                        </button>
                       </div>
+
+                      {showHint && currentQuestion?.hint && (
+                        <div className="bg-gray-700/50 rounded-lg p-4 mt-4 text-gray-300">
+                          {currentQuestion.hint}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 녹음 버튼 */}
+                    <div className="flex justify-center">
+                      {!isRecording ? (
+                        <button
+                          className="btn bg-purple-600 text-white"
+                          onClick={startRec}
+                          disabled={isAnalyzing}
+                        >
+                          답변 시작
+                        </button>
+                      ) : (
+                        <button
+                          className="btn bg-red-600 text-white"
+                          onClick={stopRec}
+                        >
+                          답변 종료
+                        </button>
+                      )}
                     </div>
 
                     {/* 피드백 */}
                     {feedback && (
-                      <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 shadow-lg">
-                        <h3 className="text-lg font-semibold text-white mb-4">피드백</h3>
-                        <div className="space-y-4">
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-300 mb-2">장점</h4>
-                            <ul className="list-disc list-inside space-y-1">
-                              {feedback.strengths.map((strength, index) => (
-                                <li key={index} className="text-green-400">{strength}</li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-300 mb-2">개선점</h4>
-                            <ul className="list-disc list-inside space-y-1">
-                              {feedback.improvements.map((improvement, index) => (
-                                <li key={index} className="text-yellow-400">{improvement}</li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div className="text-center">
-                            <span className="text-2xl font-bold text-white">
-                              {feedback.score}점
-                            </span>
-                          </div>
-                        </div>
+                      <div className="bg-gray-800/50 rounded-xl p-6 space-y-2">
+                        <p className="text-green-400">
+                          장점: {feedback.strengths.join(', ')}
+                        </p>
+                        <p className="text-yellow-400">
+                          개선점: {feedback.improvements.join(', ')}
+                        </p>
+                        <p className="text-white font-bold">점수: {feedback.score}</p>
                       </div>
                     )}
 
-                    {/* 네비게이션 버튼 */}
+                    {/* 네비게이션 */}
                     <div className="flex justify-between">
                       <button
-                        className="btn bg-gray-700 text-white hover:bg-gray-600"
-                        onClick={handlePreviousQuestion}
+                        className="btn bg-gray-700 text-white"
+                        onClick={prevQuestion}
                         disabled={currentQuestionIndex === 0}
                       >
                         이전 질문
                       </button>
                       <button
-                        className="btn bg-purple-600 text-white hover:bg-purple-700"
-                        onClick={handleNextQuestion}
+                        className="btn bg-purple-600 text-white"
+                        onClick={nextQuestion}
                         disabled={!feedback}
                       >
                         다음 질문
@@ -452,10 +338,9 @@ function Interview() {
           </div>
         </section>
       </main>
-
       <Footer />
     </div>
   );
 }
 
-export default Interview; 
+export default Interview;

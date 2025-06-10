@@ -66,7 +66,7 @@ function Resume() {
         }
 
         // First, get the list of resumes to find the most recent one
-        const listResponse = await fetch(`https://api.interv.swote.dev/api/resumes?id=${id}`, {
+        const listResponse = await fetch(`https://api.interv.swote.dev/api/resume`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -77,97 +77,72 @@ function Resume() {
 
         if (listResponse.ok) {
           const listData = await listResponse.json();
-          if (listData.data && listData.data.content && listData.data.content.length > 0) {
-            // Get the most recent resume
-            const mostRecentResume = listData.data.content[0];
-            const resumeId = mostRecentResume.id;
+          if (listData.data) {
+            const resume = listData.data;
+            console.log('Resume Detail:', resume);
 
-            // Now fetch the detailed resume using the new endpoint
-            const detailResponse = await fetch(`https://api.interv.swote.dev/api/resumes/${resumeId}`, {
-              method: 'GET',
-              headers: {
-                'Content-Type': 'application/json',
-                'accept': '*/*',
-                'Authorization': `Bearer ${token}`
-              },
+            // 날짜 배열을 YYYY-MM-DD 형식의 문자열로 변환하는 함수
+            const formatDateArray = (dateArray) => {
+              if (!dateArray || !Array.isArray(dateArray) || dateArray.length < 3) return '';
+              const [year, month, day] = dateArray;
+              // 월과 일이 한 자리 수인 경우 앞에 0을 붙임
+              const formattedMonth = String(month).padStart(2, '0');
+              const formattedDay = String(day).padStart(2, '0');
+              return `${year}-${formattedMonth}-${formattedDay}`;
+            };
+
+            setExistingResume({
+              id: resume.id,
+              title: resume.title || '',
+              content: resume.content || '',
+              objective: resume.objective || '',
+              skills: resume.skills || [],
+              projects: (resume.projects || []).map(project => ({
+                id: project.id,
+                projectName: project.projectName || '',
+                description: project.description || '',
+                startDate: project.startDate,
+                endDate: project.endDate,
+                inProgress: project.inProgress || false
+              })),
+              certifications: (resume.certifications || []).map(cert => ({
+                id: cert.id,
+                certificationName: cert.certificationName || '',
+                issuingOrganization: cert.issuingOrganization || '',
+                acquiredDate: cert.acquiredDate,
+                expiryDate: cert.expiryDate,
+                noExpiry: cert.noExpiry || false
+              })),
+              workExperiences: (resume.workExperiences || []).map(work => ({
+                id: work.id,
+                companyName: work.companyName || '',
+                position: work.position || '',
+                department: work.department || '',
+                location: work.location || '',
+                startDate: work.startDate,
+                endDate: work.endDate,
+                currentlyWorking: work.currentlyWorking || false,
+                responsibilities: work.responsibilities || '',
+                achievements: work.achievements || ''
+              })),
+              educations: (resume.educations || []).map(edu => ({
+                id: edu.id,
+                schoolType: edu.schoolType || '',
+                schoolName: edu.schoolName || '',
+                location: edu.location || '',
+                major: edu.major || '',
+                enrollmentDate: edu.enrollmentDate,
+                graduationDate: edu.graduationDate,
+                inProgress: edu.inProgress || false,
+                gpa: edu.gpa || ''
+              }))
             });
-
-            if (detailResponse.ok) {
-              const detailData = await detailResponse.json();
-              if (detailData.data) {
-                const resume = detailData.data;
-                console.log('Resume Detail:', resume);
-
-                // 날짜 배열을 YYYY-MM-DD 형식의 문자열로 변환하는 함수
-                const formatDateArray = (dateArray) => {
-                  if (!dateArray || !Array.isArray(dateArray) || dateArray.length < 3) return '';
-                  const [year, month, day] = dateArray;
-                  // 월과 일이 한 자리 수인 경우 앞에 0을 붙임
-                  const formattedMonth = String(month).padStart(2, '0');
-                  const formattedDay = String(day).padStart(2, '0');
-                  return `${year}-${formattedMonth}-${formattedDay}`;
-                };
-
-                // Set the existing resume data
-                setExistingResume(resume);
-                setFormData({
-                  title: resume.title || '',
-                  content: resume.content || '',
-                  objective: resume.objective || '',
-                  skills: resume.skills || [],
-                  projects: (resume.projects || []).map(project => ({
-                    id: project.id,
-                    projectName: project.projectName || '',
-                    description: project.description || '',
-                    startDate: formatDateArray(project.startDate),
-                    endDate: formatDateArray(project.endDate),
-                    inProgress: project.inProgress || false
-                  })),
-                  certifications: (resume.certifications || []).map(cert => ({
-                    id: cert.id,
-                    certificationName: cert.certificationName || '',
-                    issuingOrganization: cert.issuingOrganization || '',
-                    acquiredDate: formatDateArray(cert.acquiredDate),
-                    expiryDate: formatDateArray(cert.expiryDate),
-                    noExpiry: cert.noExpiry || false
-                  })),
-                  workExperiences: (resume.workExperiences || []).map(work => ({
-                    id: work.id,
-                    companyName: work.companyName || '',
-                    position: work.position || '',
-                    department: work.department || '',
-                    location: work.location || '',
-                    startDate: formatDateArray(work.startDate),
-                    endDate: formatDateArray(work.endDate),
-                    currentlyWorking: work.currentlyWorking || false,
-                    responsibilities: work.responsibilities || '',
-                    achievements: work.achievements || ''
-                  })),
-                  educations: (resume.educations || []).map(edu => ({
-                    id: edu.id,
-                    schoolType: edu.schoolType || '',
-                    schoolName: edu.schoolName || '',
-                    location: edu.location || '',
-                    major: edu.major || '',
-                    enrollmentDate: formatDateArray(edu.enrollmentDate),
-                    graduationDate: formatDateArray(edu.graduationDate),
-                    inProgress: edu.inProgress || false,
-                    gpa: edu.gpa || ''
-                  }))
-                });
-              }
-            } else {
-              console.error('이력서 상세 조회 실패:', detailResponse.status);
-              const errorText = await detailResponse.text();
-              console.error('오류 상세:', errorText);
-              setExistingResume(null);
-            }
           } else {
             console.log('등록된 이력서가 없습니다.');
             setExistingResume(null);
           }
         } else {
-          console.error('이력서 목록 조회 실패:', listResponse.status);
+          console.error('이력서 조회 실패:', listResponse.status);
           const errorText = await listResponse.text();
           console.error('오류 상세:', errorText);
           setExistingResume(null);
@@ -362,29 +337,29 @@ function Resume() {
       if (existingResume) {
         console.log('Updating existing resume with ID:', existingResume.id); // 수정 중인 이력서 ID 로깅
 
-        // 각 배열의 id를 별도 필드로 매핑
         const putData = {
-          ...resumeData,
-          id: existingResume.id, // ID 명시적 포함
-          status: 'ACTIVE', // 상태 명시적 포함
+          title: formData.title,
+          content: formData.content,
+          objective: formData.objective,
+          skills: formData.skills,
           projects: formData.projects.map(project => ({
-            projectId: project.id, // 기존 id를 projectId로
             projectName: project.projectName,
             description: project.description,
             startDate: project.startDate,
             endDate: project.inProgress ? null : project.endDate,
-            inProgress: project.inProgress
+            inProgress: project.inProgress,
+            projectId: project.id
           })),
           certifications: formData.certifications.map(cert => ({
-            certificationId: cert.id, // 기존 id를 certificationId로
             certificationName: cert.certificationName,
             issuingOrganization: cert.issuingOrganization,
             acquiredDate: cert.acquiredDate,
             expiryDate: cert.noExpiry ? null : cert.expiryDate,
-            noExpiry: cert.noExpiry
+            noExpiry: cert.noExpiry,
+            certificationId: cert.id
           })),
           workExperiences: formData.workExperiences.map(work => ({
-            workExperienceId: work.id, // 기존 id를 workExperienceId로
+            id: work.id,
             companyName: work.companyName,
             position: work.position,
             department: work.department || '',
@@ -396,7 +371,6 @@ function Resume() {
             achievements: work.achievements || ''
           })),
           educations: formData.educations.map(edu => ({
-            educationId: edu.id, // 기존 id를 educationId로
             schoolType: edu.schoolType,
             schoolName: edu.schoolName,
             location: edu.location || '',
@@ -404,14 +378,15 @@ function Resume() {
             enrollmentDate: edu.enrollmentDate,
             graduationDate: edu.inProgress ? null : edu.graduationDate,
             inProgress: edu.inProgress,
-            gpa: edu.gpa || ''
+            gpa: edu.gpa || '',
+            educationId: edu.id
           }))
         };
 
         console.log('PUT 요청 데이터:', putData); // PUT 요청 데이터를 보기 좋게 출력
 
         // 기존 이력서 수정 - PUT 요청으로 완전히 새로운 데이터로 덮어쓰기
-        response = await fetch(`https://api.interv.swote.dev/api/resumes/${existingResume.id}`, {
+        response = await fetch(`https://api.interv.swote.dev/api/resume`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -430,7 +405,7 @@ function Resume() {
         }
       } else {
         // 새 이력서 생성
-        response = await fetch(`https://api.interv.swote.dev/api/resumes?id=${id}`, {
+        response = await fetch(`https://api.interv.swote.dev/api/resume?id=${id}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -457,12 +432,6 @@ function Resume() {
       console.error('이력서 제출 중 오류 발생:', error);
       alert(error.message || '이력서 제출 중 오류가 발생했습니다.');
     }
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
   };
 
   return (
@@ -520,7 +489,7 @@ function Resume() {
                             <h3 className="text-lg font-medium text-white mb-2">{project.projectName}</h3>
                             <p className="text-gray-300 mb-2">{project.description}</p>
                             <div className="text-sm text-gray-400">
-                              {formatDate(project.startDate)} ~ {project.inProgress ? '진행 중' : formatDate(project.endDate)}
+                              {project.startDate} ~ {project.inProgress ? '진행 중' : project.endDate}
                             </div>
                           </div>
                         ))}
@@ -536,8 +505,8 @@ function Resume() {
                             <h3 className="text-lg font-medium text-white mb-1">{cert.certificationName}</h3>
                             <p className="text-gray-300 mb-1">{cert.issuingOrganization}</p>
                             <div className="text-sm text-gray-400">
-                              취득일: {formatDate(cert.acquiredDate)}
-                              {!cert.noExpiry && ` / 만료일: ${formatDate(cert.expiryDate)}`}
+                              취득일: {cert.acquiredDate}
+                              {!cert.noExpiry && ` / 만료일: ${cert.expiryDate}`}
                             </div>
                           </div>
                         ))}
@@ -551,11 +520,11 @@ function Resume() {
                         {existingResume.workExperiences.map((work, index) => (
                           <div key={index} className="border-b border-gray-700 last:border-0 pb-4 last:pb-0">
                             <h3 className="text-lg font-medium text-white mb-1">{work.companyName}</h3>
-                            <p className="text-gray-300 mb-1">직무: {work.position}</p>
-                            {work.department && <p className="text-gray-300 mb-1">부서: {work.department}</p>}
-                            {work.location && <p className="text-gray-300 mb-1">근무지: {work.location}</p>}
+                            <p className="text-gray-300 mb-1">{work.position}</p>
+                            {work.department && <p className="text-gray-300 mb-1">{work.department}</p>}
+                            {work.location && <p className="text-gray-300 mb-1">{work.location}</p>}
                             <div className="text-sm text-gray-400 mb-2">
-                              {formatDate(work.startDate)} ~ {work.currentlyWorking ? '현재' : formatDate(work.endDate)}
+                              {work.startDate} ~ {work.currentlyWorking ? '현재' : work.endDate}
                             </div>
                             <div className="text-gray-300 mb-2">
                               <h4 className="font-medium mb-1">주요 업무</h4>
@@ -583,7 +552,7 @@ function Resume() {
                             {edu.major && <p className="text-gray-300 mb-1">{edu.major}</p>}
                             {edu.location && <p className="text-gray-300 mb-1">{edu.location}</p>}
                             <div className="text-sm text-gray-400">
-                              {formatDate(edu.enrollmentDate)} ~ {edu.inProgress ? '재학 중' : formatDate(edu.graduationDate)}
+                              {edu.enrollmentDate} ~ {edu.inProgress ? '재학 중' : edu.graduationDate}
                               {edu.gpa && ` / 학점: ${edu.gpa}`}
                             </div>
                           </div>
