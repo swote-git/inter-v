@@ -20,6 +20,7 @@ function Header() {
     if (token && storedUserId) {
       setIsLoggedIn(true);
       setUserId(storedUserId);
+      console.log(storedUserId)
       setUserEmail(storedEmail);
     }
   }, []);
@@ -87,11 +88,6 @@ function Header() {
                 <Link to="/interview" className="font-medium text-gray-300 hover:text-white px-4 py-3 flex items-center transition duration-150 ease-in-out">
                   모의 면접
                 </Link>
-              </li>
-              <li>
-                <span className="font-medium text-gray-300 px-4 py-3 flex items-center">
-                  마이 페이지
-                </span>
               </li>
               {!isLoggedIn ? (
                 <>
@@ -166,11 +162,6 @@ function Header() {
                   <Link to="/interview" className="flex font-medium w-full text-gray-300 hover:text-white py-2 justify-center">
                     모의 면접
                   </Link>
-                </li>
-                <li>
-                  <span className="flex font-medium w-full text-gray-300 py-2 justify-center">
-                    마이 페이지
-                  </span>
                 </li>
                 {!isLoggedIn ? (
                   <>
