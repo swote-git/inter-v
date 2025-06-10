@@ -1,5 +1,5 @@
 // 면접 서비스 상태 확인 및 테스트용 컨트롤러
-package dev.swote.interv.controller.admin;
+package dev.swote.interv.controller;
 
 import dev.swote.interv.service.interview.InterviewService;
 import dev.swote.interv.service.ai.LlmService;

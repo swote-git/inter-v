@@ -6,6 +6,7 @@ import dev.swote.interv.domain.resume.mapper.ResumeMapper;
 import dev.swote.interv.domain.resume.repository.*;
 import dev.swote.interv.domain.user.entity.User;
 import dev.swote.interv.domain.user.repository.UserRepository;
+import dev.swote.interv.exception.DuplicateResourceException;
 import dev.swote.interv.exception.ResourceNotFoundException;
 import dev.swote.interv.exception.UserNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -76,7 +77,7 @@ public class ResumeService {
 
         // 이미 이력서가 존재하는지 확인
         if (resumeRepository.existsByUserId(userId)) {
-            throw new IllegalStateException("Resume already exists for user id: " + userId);
+            throw new DuplicateResourceException("Resume already exists for user id: " + userId);
         }
 
         // Resume 엔티티 생성
@@ -102,7 +103,7 @@ public class ResumeService {
 
         // 이미 이력서가 존재하는지 확인
         if (resumeRepository.existsByUserId(userId)) {
-            throw new IllegalStateException("Resume already exists for user id: " + userId);
+            throw new DuplicateResourceException("Resume already exists for user id: " + userId);
         }
 
         try {

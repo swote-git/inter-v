@@ -1,5 +1,4 @@
 package dev.swote.interv.domain.interview.entity;
-import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import dev.swote.interv.domain.BaseEntity;
 import dev.swote.interv.domain.position.entity.Position;
