@@ -362,13 +362,52 @@ function Resume() {
       if (existingResume) {
         console.log('Updating existing resume with ID:', existingResume.id); // 수정 중인 이력서 ID 로깅
 
+        // 각 배열의 id를 별도 필드로 매핑
         const putData = {
           ...resumeData,
           id: existingResume.id, // ID 명시적 포함
-          status: 'ACTIVE' // 상태 명시적 포함
+          status: 'ACTIVE', // 상태 명시적 포함
+          projects: formData.projects.map(project => ({
+            projectId: project.id, // 기존 id를 projectId로
+            projectName: project.projectName,
+            description: project.description,
+            startDate: project.startDate,
+            endDate: project.inProgress ? null : project.endDate,
+            inProgress: project.inProgress
+          })),
+          certifications: formData.certifications.map(cert => ({
+            certificationId: cert.id, // 기존 id를 certificationId로
+            certificationName: cert.certificationName,
+            issuingOrganization: cert.issuingOrganization,
+            acquiredDate: cert.acquiredDate,
+            expiryDate: cert.noExpiry ? null : cert.expiryDate,
+            noExpiry: cert.noExpiry
+          })),
+          workExperiences: formData.workExperiences.map(work => ({
+            workExperienceId: work.id, // 기존 id를 workExperienceId로
+            companyName: work.companyName,
+            position: work.position,
+            department: work.department || '',
+            location: work.location || '',
+            startDate: work.startDate,
+            endDate: work.currentlyWorking ? null : work.endDate,
+            currentlyWorking: work.currentlyWorking,
+            responsibilities: work.responsibilities,
+            achievements: work.achievements || ''
+          })),
+          educations: formData.educations.map(edu => ({
+            educationId: edu.id, // 기존 id를 educationId로
+            schoolType: edu.schoolType,
+            schoolName: edu.schoolName,
+            location: edu.location || '',
+            major: edu.major || '',
+            enrollmentDate: edu.enrollmentDate,
+            graduationDate: edu.inProgress ? null : edu.graduationDate,
+            inProgress: edu.inProgress,
+            gpa: edu.gpa || ''
+          }))
         };
 
-        console.log('hi')
         console.log('PUT 요청 데이터:', putData); // PUT 요청 데이터를 보기 좋게 출력
 
         // 기존 이력서 수정 - PUT 요청으로 완전히 새로운 데이터로 덮어쓰기
@@ -418,6 +457,12 @@ function Resume() {
       console.error('이력서 제출 중 오류 발생:', error);
       alert(error.message || '이력서 제출 중 오류가 발생했습니다.');
     }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
   };
 
   return (
@@ -475,7 +520,7 @@ function Resume() {
                             <h3 className="text-lg font-medium text-white mb-2">{project.projectName}</h3>
                             <p className="text-gray-300 mb-2">{project.description}</p>
                             <div className="text-sm text-gray-400">
-                              {project.startDate} ~ {project.inProgress ? '진행 중' : project.endDate}
+                              {formatDate(project.startDate)} ~ {project.inProgress ? '진행 중' : formatDate(project.endDate)}
                             </div>
                           </div>
                         ))}
@@ -491,8 +536,8 @@ function Resume() {
                             <h3 className="text-lg font-medium text-white mb-1">{cert.certificationName}</h3>
                             <p className="text-gray-300 mb-1">{cert.issuingOrganization}</p>
                             <div className="text-sm text-gray-400">
-                              취득일: {cert.acquiredDate}
-                              {!cert.noExpiry && ` / 만료일: ${cert.expiryDate}`}
+                              취득일: {formatDate(cert.acquiredDate)}
+                              {!cert.noExpiry && ` / 만료일: ${formatDate(cert.expiryDate)}`}
                             </div>
                           </div>
                         ))}
@@ -506,11 +551,11 @@ function Resume() {
                         {existingResume.workExperiences.map((work, index) => (
                           <div key={index} className="border-b border-gray-700 last:border-0 pb-4 last:pb-0">
                             <h3 className="text-lg font-medium text-white mb-1">{work.companyName}</h3>
-                            <p className="text-gray-300 mb-1">{work.position}</p>
-                            {work.department && <p className="text-gray-300 mb-1">{work.department}</p>}
-                            {work.location && <p className="text-gray-300 mb-1">{work.location}</p>}
+                            <p className="text-gray-300 mb-1">직무: {work.position}</p>
+                            {work.department && <p className="text-gray-300 mb-1">부서: {work.department}</p>}
+                            {work.location && <p className="text-gray-300 mb-1">근무지: {work.location}</p>}
                             <div className="text-sm text-gray-400 mb-2">
-                              {work.startDate} ~ {work.currentlyWorking ? '현재' : work.endDate}
+                              {formatDate(work.startDate)} ~ {work.currentlyWorking ? '현재' : formatDate(work.endDate)}
                             </div>
                             <div className="text-gray-300 mb-2">
                               <h4 className="font-medium mb-1">주요 업무</h4>
@@ -538,7 +583,7 @@ function Resume() {
                             {edu.major && <p className="text-gray-300 mb-1">{edu.major}</p>}
                             {edu.location && <p className="text-gray-300 mb-1">{edu.location}</p>}
                             <div className="text-sm text-gray-400">
-                              {edu.enrollmentDate} ~ {edu.inProgress ? '재학 중' : edu.graduationDate}
+                              {formatDate(edu.enrollmentDate)} ~ {edu.inProgress ? '재학 중' : formatDate(edu.graduationDate)}
                               {edu.gpa && ` / 학점: ${edu.gpa}`}
                             </div>
                           </div>
