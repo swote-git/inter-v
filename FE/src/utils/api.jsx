@@ -5,7 +5,7 @@ const API_BASE_URL =
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15_000,
+  timeout: 300_000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -51,6 +51,9 @@ api.interceptors.response.use(
 export const createInterview = (payload) =>
   api.post('/api/interviews', payload); // 인증 토큰으로 사용자 식별
 
+export const startInterview = (interviewId) =>
+  api.post(`/api/interviews/${interviewId}/start`);
+
 export const getInterviewQuestions = (interviewId) =>
   api.get(`/api/interviews/${interviewId}/questions`);
 
@@ -59,6 +62,17 @@ export const getNextQuestion = (interviewId) =>
 
 export const submitAnswer = (questionId, body) =>
   api.post(`/api/interviews/questions/${questionId}/answer`, body);
+
+export const uploadAudioAnswer = (questionId, formData) =>
+  api.post(`/api/interviews/questions/${questionId}/answer/audio`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
+export const completeInterview = (interviewId) =>
+  api.post(`/api/interviews/${interviewId}/complete`);
+
+export const updateInterviewTime = (interviewId, timeData) =>
+  api.post(`/api/interviews/${interviewId}/time`, timeData);
 
 /* ------------------------------------------------------------------ */
 /*  Question 검색 & 즐겨찾기                                           */
