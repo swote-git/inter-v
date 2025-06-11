@@ -29,6 +29,7 @@ function Header() {
     localStorage.removeItem('token');
     localStorage.removeItem('userId');
     localStorage.removeItem('userEmail');
+    localStorage.removeItem('savedQuestions');
     setIsLoggedIn(false);
     setUserId('');
     setUserEmail('');
