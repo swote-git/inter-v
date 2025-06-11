@@ -64,8 +64,8 @@ function FeaturesZigzag() {
               <div className="max-w-xl md:max-w-none md:w-full mx-auto md:col-span-7 lg:col-span-6" data-aos="fade-left">
                 <div className="md:pl-4 lg:pl-12 xl:pl-16">
                   <div className="font-architects-daughter text-xl text-purple-600 mb-2">면접 대비</div>
-                  <h3 className="h3 mb-3">내 이력서와 프로젝트 입력하러 가기</h3>
-                  <p className="text-xl text-gray-400 mb-4">내 이력서와 프로젝트를 입력하고, 면접 대비하러 가기</p>
+                  <h3 className="h3 mb-3">내 이력서와 프로젝트 입력하기</h3>
+                  <p className="text-xl text-gray-400 mb-4">내 이력서와 프로젝트를 입력하고, 면접 대비하기</p>
                   <ul className="text-lg text-gray-400 -mb-2">
                     <li className="flex items-center mb-2">
                       <svg className="w-3 h-3 fill-current text-green-500 mr-2 shrink-0" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">

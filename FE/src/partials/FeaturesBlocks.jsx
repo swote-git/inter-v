@@ -22,150 +22,11 @@ function FeaturesBlocks() {
           {/* 그리드 레이아웃 */}
           <div className="max-w-sm mx-auto grid gap-8 md:grid-cols-3 lg:grid-cols-4 lg:gap-16 items-start md:max-w-2xl lg:max-w-none" data-aos-id-blocks>
 
-            {/* 1 */}
             <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">한국ICT기술협회</h4>
-              <p className="text-lg text-gray-400 grow">[국비무료IT취업] <br /> 자바파이썬/웹개발 외</p>
+              <h4 className="h4 mt-4 mb-4">키다리스튜디오</h4>
+              <p className="text-lg text-gray-400 grow">프론트엔드 개발자 <br />CSS, HTML</p>
               <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">관심기업 TOP100</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.15(목)</p>
-              </div>
-            </div>
-
-
-            {/* 2 */}
-            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">SK쉴더스</h4>
-              <p className="text-lg text-gray-400 grow">생성형AI 활용 사이버보안<br />채용연계형 모집</p>
-              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">대기업</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.20(화)</p>
-              </div>
-            </div>
-
-
-            {/* 3 */}
-            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">인텔코리아</h4>
-              <p className="text-lg text-gray-400 grow">인공지능 응용앱 크리에이터<br /> 양성과정</p>
-              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">인기있는</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.19(월)</p>
-              </div>
-            </div>
-
-
-            {/* 4 */}
-            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">현대모비스</h4>
-              <p className="text-lg text-gray-400 grow">장학전환 인턴모집</p>
-              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">TOP100기업</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.12(월)</p>
-              </div>
-            </div>
-
-            {/* 5 */}
-            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">LG CNS</h4>
-              <p className="text-lg text-gray-400 grow">2025 Global Internship</p>
-              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">TOP100 기업</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.12(월)</p>
-              </div>
-            </div>
-
-            {/* 6 */}
-            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">점핏</h4>
-              <p className="text-lg text-gray-400 grow">인공지능 응용앱 크리에이터<br /> 양성과정</p>
-              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">인기있는</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.19(월)</p>
-              </div>
-            </div>
-
-            {/* 7 */}
-            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">현대오토에버</h4>
-              <p className="text-lg text-gray-400 grow">2025년 상반기 신입사원 채용<br /> 온라인 채용설명회 신청 중</p>
-              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">대기업</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.12(월)</p>
-              </div>
-            </div>
-
-
-            {/* 1 */}
-            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">한국ICT기술협회</h4>
-              <p className="text-lg text-gray-400 grow">[국비무료IT취업] <br /> 자바파이썬/웹개발 외</p>
-              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">관심기업 TOP100</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.15(목)</p>
-              </div>
-            </div>
-
-
-            {/* 2 */}
-            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">SK쉴더스</h4>
-              <p className="text-lg text-gray-400 grow">생성형AI 활용 사이버보안<br />채용연계형 모집</p>
-              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">대기업</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.20(화)</p>
-              </div>
-            </div>
-
-
-            {/* 3 */}
-            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">인텔코리아</h4>
-              <p className="text-lg text-gray-400 grow">인공지능 응용앱 크리에이터<br /> 양성과정</p>
-              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">인기있는</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.19(월)</p>
-              </div>
-            </div>
-
-
-            {/* 4 */}
-            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">현대모비스</h4>
-              <p className="text-lg text-gray-400 grow">장학전환 인턴모집</p>
-              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">TOP100기업</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.12(월)</p>
-              </div>
-            </div>
-
-            {/* 5 */}
-            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">LG CNS</h4>
-              <p className="text-lg text-gray-400 grow">2025 Global Internship</p>
-              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">TOP100 기업</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.12(월)</p>
-              </div>
-            </div>
-
-            {/* 6 */}
-            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">점핏</h4>
-              <p className="text-lg text-gray-400 grow">인공지능 응용앱 크리에이터<br /> 양성과정</p>
-              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">인기있는</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.19(월)</p>
-              </div>
-            </div>
-
-            {/* 7 */}
-            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">현대오토에버</h4>
-              <p className="text-lg text-gray-400 grow">2025년 상반기 신입사원 채용<br /> 온라인 채용설명회 신청 중</p>
-              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">대기업</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.12(월)</p>
+                <p className="text-gray-200 not-italic">강소기업</p>
               </div>
             </div>
 
@@ -173,87 +34,105 @@ function FeaturesBlocks() {
 
             {/* 1 */}
             <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">한국ICT기술협회</h4>
-              <p className="text-lg text-gray-400 grow">[국비무료IT취업] <br /> 자바파이썬/웹개발 외</p>
+              <h4 className="h4 mt-4 mb-4">에스엠코어</h4>
+              <p className="text-lg text-gray-400 grow">SI팀 담당자 <br />Java</p>
               <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">관심기업 TOP100</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.15(목)</p>
+                <p className="text-gray-200 not-italic">SK그룹 계열사</p>
               </div>
             </div>
 
 
             {/* 2 */}
             <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">SK쉴더스</h4>
-              <p className="text-lg text-gray-400 grow">생성형AI 활용 사이버보안<br />채용연계형 모집</p>
+              <h4 className="h4 mt-4 mb-4">미디어로그</h4>
+              <p className="text-lg text-gray-400 grow">SI/SM 개발<br />프론트엔드, 백엔드</p>
               <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">대기업</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.20(화)</p>
+                <p className="text-gray-200 not-italic">LG그룹 계열사</p>
               </div>
             </div>
 
 
             {/* 3 */}
             <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">인텔코리아</h4>
-              <p className="text-lg text-gray-400 grow">인공지능 응용앱 크리에이터<br /> 양성과정</p>
+              <h4 className="h4 mt-4 mb-4">디어유</h4>
+              <p className="text-lg text-gray-400 grow">ios 개발<br />Swift, Object-C</p>
               <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">인기있는</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.19(월)</p>
+                <p className="text-gray-200 not-italic">코스닥 상장기업</p>
               </div>
             </div>
 
 
             {/* 4 */}
             <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">현대모비스</h4>
-              <p className="text-lg text-gray-400 grow">장학전환 인턴모집</p>
+              <h4 className="h4 mt-4 mb-4">카카오게임즈</h4>
+              <p className="text-lg text-gray-400 grow">웹서비스 풀스택 개발자<br />Java, Spring, vue.js</p>
               <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">TOP100기업</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.12(월)</p>
+                <p className="text-gray-200 not-italic">카카오그룹 계열사</p>
               </div>
             </div>
 
-            {/* 5 */}
             <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">LG CNS</h4>
-              <p className="text-lg text-gray-400 grow">2025 Global Internship</p>
+              <h4 className="h4 mt-4 mb-4">비즈테크아이</h4>
+              <p className="text-lg text-gray-400 grow">SI/SM 사업<br />네트워크 관련지식 필요</p>
               <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">TOP100 기업</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.12(월)</p>
+                <p className="text-gray-200 not-italic">LG그룹 계열사</p>
               </div>
             </div>
 
-            {/* 6 */}
             <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">점핏</h4>
-              <p className="text-lg text-gray-400 grow">인공지능 응용앱 크리에이터<br /> 양성과정</p>
-              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
-                <p className="text-gray-200 not-italic">인기있는</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.19(월)</p>
-              </div>
-            </div>
-
-            {/* 7 */}
-            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
-              <h4 className="h4 mt-4 mb-4">현대오토에버</h4>
-              <p className="text-lg text-gray-400 grow">2025년 상반기 신입사원 채용<br /> 온라인 채용설명회 신청 중</p>
+              <h4 className="h4 mt-4 mb-4">원스토어</h4>
+              <p className="text-lg text-gray-400 grow">Devops 엔지니어 채용<br />Jenkins, GitLab 사용 경험</p>
               <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
                 <p className="text-gray-200 not-italic">대기업</p>
-                <p className="text-purple-600 hover:text-gray-200 transition duration-150 ease-in-out">~05.12(월)</p>
               </div>
             </div>
 
-          </div>
+            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
+              <h4 className="h4 mt-4 mb-4">현대오토에버</h4>
+              <p className="text-lg text-gray-400 grow">SI 프로젝트 개발<br />프론트엔드</p>
+              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
+                <p className="text-gray-200 not-italic">1000대기업</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
+              <h4 className="h4 mt-4 mb-4">현대오토에버</h4>
+              <p className="text-lg text-gray-400 grow">이커머스 시스템 개발<br />Java, Spring, Spring Boot</p>
+              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
+                <p className="text-gray-200 not-italic">1000대기업</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
+              <h4 className="h4 mt-4 mb-4">카카오게임즈</h4>
+              <p className="text-lg text-gray-400 grow">클라이언트 SDK 개발자<br />Unity, Unreal Engine</p>
+              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
+                <p className="text-gray-200 not-italic">카카오그룹 계열사</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
+              <h4 className="h4 mt-4 mb-4">넥슨</h4>
+              <p className="text-lg text-gray-400 grow">게임 서버 프로그래머<br />C#, Node.js, Go</p>
+              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
+                <p className="text-gray-200 not-italic">1000대기업</p>
+              </div>
+            </div>
+            <div className="flex flex-col h-full p-6 bg-gray-800" data-aos="fade-up">
+              <h4 className="h4 mt-4 mb-4">넥슨</h4>
+              <p className="text-lg text-gray-400 grow">메이플스토리 서버 프로그래머<br />C++, MSSQL</p>
+              <div className="flex justify-between items-center text-gray-700 font-medium mt-6 pt-5 border-t border-gray-700">
+                <p className="text-gray-200 not-italic">1000대기업</p>
+              </div>
+            </div>
 
 
 
+            {/* 그리드 레이아웃 */}
+            {/* <div className="max-w-sm mx-auto grid gap-8 md:grid-cols-2 lg:grid-cols-3 lg:gap-16 items-start md:max-w-2xl lg:max-w-none" data-aos-id-blocks> */}
 
-          {/* 그리드 레이아웃 */}
-          {/* <div className="max-w-sm mx-auto grid gap-8 md:grid-cols-2 lg:grid-cols-3 lg:gap-16 items-start md:max-w-2xl lg:max-w-none" data-aos-id-blocks> */}
-
-          {/* 1st item */}
-          {/* <div className="relative flex flex-col items-center" data-aos="fade-up" data-aos-anchor="[data-aos-id-blocks]">
+            {/* 1st item */}
+            {/* <div className="relative flex flex-col items-center" data-aos="fade-up" data-aos-anchor="[data-aos-id-blocks]">
               <svg className="w-16 h-16 mb-4" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
                 <rect className="fill-current text-purple-600" width="64" height="64" rx="32" />
                 <path className="stroke-current text-purple-100" d="M30 39.313l-4.18 2.197L27 34.628l-5-4.874 6.91-1.004L32 22.49l3.09 6.26L42 29.754l-3 2.924" strokeLinecap="square" strokeWidth="2" fill="none" fillRule="evenodd" />
@@ -263,8 +142,8 @@ function FeaturesBlocks() {
               <p className="text-lg text-gray-400 text-center">Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat.</p>
             </div> */}
 
-          {/* 2nd item */}
-          {/* <div className="relative flex flex-col items-center" data-aos="fade-up" data-aos-delay="100" data-aos-anchor="[data-aos-id-blocks]">
+            {/* 2nd item */}
+            {/* <div className="relative flex flex-col items-center" data-aos="fade-up" data-aos-delay="100" data-aos-anchor="[data-aos-id-blocks]">
               <svg className="w-16 h-16 mb-4" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
                 <circle className="fill-current text-purple-600" cx="32" cy="32" r="32" />
                 <path className="stroke-current text-purple-100" strokeWidth="2" strokeLinecap="square" d="M21 23h22v18H21z" fill="none" fillRule="evenodd" />
@@ -274,8 +153,8 @@ function FeaturesBlocks() {
               <p className="text-lg text-gray-400 text-center">Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat.</p>
             </div> */}
 
-          {/* 3rd item */}
-          {/* <div className="relative flex flex-col items-center" data-aos="fade-up" data-aos-delay="200" data-aos-anchor="[data-aos-id-blocks]">
+            {/* 3rd item */}
+            {/* <div className="relative flex flex-col items-center" data-aos="fade-up" data-aos-delay="200" data-aos-anchor="[data-aos-id-blocks]">
               <svg className="w-16 h-16 mb-4" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
                 <rect className="fill-current text-purple-600" width="64" height="64" rx="32" />
                 <g transform="translate(21 21)" strokeLinecap="square" strokeWidth="2" fill="none" fillRule="evenodd">
@@ -288,8 +167,8 @@ function FeaturesBlocks() {
               <p className="text-lg text-gray-400 text-center">Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat.</p>
             </div> */}
 
-          {/* 4th item */}
-          {/* <div className="relative flex flex-col items-center" data-aos="fade-up" data-aos-delay="300" data-aos-anchor="[data-aos-id-blocks]">
+            {/* 4th item */}
+            {/* <div className="relative flex flex-col items-center" data-aos="fade-up" data-aos-delay="300" data-aos-anchor="[data-aos-id-blocks]">
               <svg className="w-16 h-16 mb-4" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
                 <rect className="fill-current text-purple-600" width="64" height="64" rx="32" />
                 <g transform="translate(22 21)" strokeLinecap="square" strokeWidth="2" fill="none" fillRule="evenodd">
@@ -301,8 +180,8 @@ function FeaturesBlocks() {
               <p className="text-lg text-gray-400 text-center">Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat.</p>
             </div> */}
 
-          {/* 5th item */}
-          {/* <div className="relative flex flex-col items-center" data-aos="fade-up" data-aos-delay="400" data-aos-anchor="[data-aos-id-blocks]">
+            {/* 5th item */}
+            {/* <div className="relative flex flex-col items-center" data-aos="fade-up" data-aos-delay="400" data-aos-anchor="[data-aos-id-blocks]">
               <svg className="w-16 h-16 mb-4" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
                 <rect className="fill-current text-purple-600" width="64" height="64" rx="32" />
                 <g strokeLinecap="square" strokeWidth="2" fill="none" fillRule="evenodd">
@@ -314,8 +193,8 @@ function FeaturesBlocks() {
               <p className="text-lg text-gray-400 text-center">Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat.</p>
             </div> */}
 
-          {/* 6th item */}
-          {/* <div className="relative flex flex-col items-center" data-aos="fade-up" data-aos-delay="500" data-aos-anchor="[data-aos-id-blocks]">
+            {/* 6th item */}
+            {/* <div className="relative flex flex-col items-center" data-aos="fade-up" data-aos-delay="500" data-aos-anchor="[data-aos-id-blocks]">
               <svg className="w-16 h-16 mb-4" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
                 <rect className="fill-current text-purple-600" width="64" height="64" rx="32" />
                 <g transform="translate(21 22)" strokeLinecap="square" strokeWidth="2" fill="none" fillRule="evenodd">
@@ -327,11 +206,12 @@ function FeaturesBlocks() {
               <h4 className="h4 mb-2">Instant Features</h4>
               <p className="text-lg text-gray-400 text-center">Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat.</p>
             </div> */}
-          {/* </div> */}
+            {/* </div> */}
 
+          </div>
         </div>
       </div>
-    </section >
+    </section>
   );
 }
 
