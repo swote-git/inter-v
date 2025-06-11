@@ -52,6 +52,8 @@ export default function Interview() {
   const [audioChunks, setAudioChunks] = useState([]);
   const [usedQuestionIndices, setUsedQuestionIndices] = useState(new Set());
   const [isStarted, setIsStarted] = useState(false);
+  const [answerText, setAnswerText] = useState(''); // 답변 텍스트 상태 추가
+  const [showCompletion, setShowCompletion] = useState(false); // 완료 메시지 상태 추가
 
   /* --------------------------------------------------
      초기 데이터 로드
@@ -387,6 +389,7 @@ export default function Interview() {
       return;
     }
     setIsStarted(true);
+    setShowCompletion(false); // 시작할 때 완료 메시지 숨김
     selectNextQuestion();
   };
 
@@ -404,7 +407,15 @@ export default function Interview() {
 
   /* ── 다음 질문으로 이동 ── */
   const moveToNextQuestion = () => {
+    if (usedQuestionIndices.size >= questions.length) {
+      // 마지막 질문이면 면접 종료
+      setIsStarted(false);
+      setAnswerText('');
+      setShowCompletion(true); // 완료 메시지 표시
+      return;
+    }
     selectNextQuestion();
+    setAnswerText('');
   };
 
   /* ── 시간 포맷팅 ── */
@@ -426,107 +437,6 @@ export default function Interview() {
         <section className="relative">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="pt-32 pb-12 md:pt-40 md:pb-20">
-
-              {/* 면접 시작 전 */}
-              {!interview && !summary && (
-                <div className="max-w-3xl mx-auto">
-                  <h1 className="h2 mb-8 text-center">모의 면접 연습</h1>
-
-                  {loadingSetup ? (
-                    <div className="text-center text-gray-400">로딩 중...</div>
-                  ) : !hasResume ? (
-                    <div className="text-center space-y-4">
-
-                    </div>
-                  ) : (
-                    <div className="bg-gray-800/50 p-6 rounded-xl space-y-6">
-                      {/* 회사 선택 */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">회사 선택</label>
-                        <select
-                          className="form-select w-full bg-gray-700/50 border-gray-600 text-white"
-                          value={selectedCompany}
-                          onChange={(e) => handleCompanyChange(e.target.value)}
-                        >
-                          <option value="">회사를 선택하세요</option>
-                          {companies.map(company => (
-                            <option key={company.id} value={company.id}>
-                              {company.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* 포지션 선택 */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">포지션 선택</label>
-                        <select
-                          className="form-select w-full bg-gray-700/50 border-gray-600 text-white"
-                          value={selectedPosition}
-                          onChange={(e) => setSelectedPosition(e.target.value)}
-                          disabled={!selectedCompany}
-                        >
-                          <option value="">포지션을 선택하세요</option>
-                          {positions.map(position => (
-                            <option key={position.id} value={position.id}>
-                              {position.title || position.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* 질문 개수 선택 */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">질문 개수</label>
-                        <div className="flex gap-4">
-                          <label className="flex items-center">
-                            <input
-                              type="radio"
-                              name="questionCount"
-                              value="5"
-                              checked={questionCount === 5}
-                              onChange={(e) => setQuestionCount(Number(e.target.value))}
-                              className="mr-2"
-                            />
-                            <span className="text-gray-300">5개</span>
-                          </label>
-                          <label className="flex items-center">
-                            <input
-                              type="radio"
-                              name="questionCount"
-                              value="10"
-                              checked={questionCount === 10}
-                              onChange={(e) => setQuestionCount(Number(e.target.value))}
-                              className="mr-2"
-                            />
-                            <span className="text-gray-300">10개</span>
-                          </label>
-                          <label className="flex items-center">
-                            <input
-                              type="radio"
-                              name="questionCount"
-                              value="15"
-                              checked={questionCount === 15}
-                              onChange={(e) => setQuestionCount(Number(e.target.value))}
-                              className="mr-2"
-                            />
-                            <span className="text-gray-300">15개</span>
-                          </label>
-                        </div>
-                      </div>
-
-                      {/* 시작 버튼 */}
-                      <button
-                        onClick={handleStart}
-                        className="btn w-full text-white bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600"
-                        disabled={!selectedPosition}
-                      >
-                        ▶️ 면접 시작하기
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
 
               {/* 면접 진행 중 */}
               {interview && question && !summary && (
@@ -696,9 +606,19 @@ export default function Interview() {
               {/* 초기 화면 */}
               {!isStarted && (
                 <div className="text-center space-y-8">
-                  <div className="space-y-4">
-                    <p className="text-l text-gray-400">이력서를 기반으로 생성된 맞춤형 면접 질문과 함께 면접을 연습해보세요.<br />한 문제당 5분의 제한시간이 주어집니다</p>
-                  </div>
+                  {showCompletion ? (
+                    <div className="space-y-4">
+                      <h1 className="h2 mb-8 text-gray-300">모의 면접을 완료하셨습니다!</h1>
+                      <p className="text-l text-gray-400">수고하셨습니다. 다음에도 도움이 필요하시다면 언제든지 연습해보세요.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <h1 className="h2 mb-8">모의 면접</h1>
+                      <div className="space-y-4">
+                        <p className="text-l text-gray-400">이력서를 기반으로 생성된 맞춤형 면접 질문과 함께 면접을 연습해보세요.<br />한 문제당 5분의 제한시간이 주어집니다</p>
+                      </div>
+                    </>
+                  )}
                   <button
                     className="btn bg-purple-600 hover:bg-purple-700 text-white px-6 py-3"
                     onClick={startPractice}
@@ -732,16 +652,24 @@ export default function Interview() {
                       )}
                     </div>
                   </div>
-                  {usedQuestionIndices.size < questions.length && (
-                    <div className="flex justify-center">
+
+                  {/* 답변 입력 영역 */}
+                  <div className="mt-6 space-y-4">
+                    <textarea
+                      className="w-full h-32 bg-gray-700/50 border border-gray-600 rounded-lg p-4 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
+                      placeholder="여기에 답변을 입력하세요..."
+                      value={answerText}
+                      onChange={(e) => setAnswerText(e.target.value)}
+                    />
+                    <div className="flex justify-end">
                       <button
-                        className="px-6 py-3 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+                        className="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors"
                         onClick={moveToNextQuestion}
                       >
-                        다음 질문
+                        답변 제출
                       </button>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
 
