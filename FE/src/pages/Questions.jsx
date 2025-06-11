@@ -15,11 +15,11 @@ const CATEGORY_OPTS = [
 ];
 const DIFF_OPTS = [
   { id: 'all', label: '난이도 전체' },
-  { id: 1, label: '1' },
-  { id: 2, label: '2' },
-  { id: 3, label: '3' },
-  { id: 4, label: '4' },
-  { id: 5, label: '5' },
+  { id: 1, label: '1단계' },
+  { id: 2, label: '2단계' },
+  { id: 3, label: '3단계' },
+  { id: 4, label: '4단계' },
+  { id: 5, label: '5단계' },
 ];
 const TYPE_OPTS = [
   { id: 'all', label: '타입 전체' },
@@ -34,55 +34,128 @@ function Questions() {
   const nav = useNavigate();
 
   /* ==== 필터 상태 ==== */
-  const [keyword, setKeyword]       = useState('');
-  const [category, setCategory]     = useState('all');
+  const [keyword, setKeyword] = useState('');
+  const [category, setCategory] = useState('all');
   const [difficulty, setDifficulty] = useState('all');
-  const [qType, setQType]           = useState('all');
-  const [onlyFav, setOnlyFav]       = useState(false);
+  const [qType, setQType] = useState('all');
+  const [onlyFav, setOnlyFav] = useState(false);
 
   /* ==== 데이터 ==== */
-  const [questions, setQuestions]   = useState([]);
-  const [loading, setLoading]       = useState(true);
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [expandedQuestions, setExpandedQuestions] = useState(new Set());
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userInfo, setUserInfo] = useState(null);
 
   /* ==== 모달 상태 ==== */
-  const [showModal, setShowModal]           = useState(false);
-  const [companies, setCompanies]           = useState([]);
-  const [positions, setPositions]           = useState([]);
-  const [companyId, setCompanyId]           = useState('');
-  const [positionId, setPositionId]         = useState('');
-  const [questionCount, setQuestionCount]   = useState(5);
-  const [modalBusy, setModalBusy]           = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [companies, setCompanies] = useState([]);
+  const [positions, setPositions] = useState([]);
+  const [companyId, setCompanyId] = useState('');
+  const [positionId, setPositionId] = useState('');
+  const [questionCount, setQuestionCount] = useState(5);
+  const [selectedDifficulty, setSelectedDifficulty] = useState(3); // 새로 추가
+  const [modalBusy, setModalBusy] = useState(false);
+
+  /* ── 간단한 인증 확인 (localStorage 기반) ── */
+  useEffect(() => {
+    const checkAuth = () => {
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+      const userId = localStorage.getItem('userId');
+      const userEmail = localStorage.getItem('userEmail');
+      
+      if (token && userId) {
+        setIsAuthenticated(true);
+        setUserInfo({
+          id: userId,
+          email: userEmail,
+          token: token
+        });
+        console.log('인증 확인됨 - 사용자 ID:', userId);
+      } else {
+        console.log('인증 정보 없음 - 로그인 페이지로 이동');
+        nav('/signin');
+      }
+    };
+    
+    checkAuth();
+  }, [nav]);
 
   /* ── 질문 검색 ── */
   const fetchQuestions = async () => {
+    if (!isAuthenticated) return;
+    
     setLoading(true);
     try {
-      const params = {
-        keyword: keyword || undefined,
-        category: category !== 'all' ? category : undefined,
-        difficultyLevel: difficulty !== 'all' ? difficulty : undefined,
-        type: qType !== 'all' ? qType : undefined,
-        size: 100,
-      };
-      const { data } = await api.get('/api/interviews/questions/search', { params });
-      setQuestions(data.data?.content || []);
+      let questionData = [];
+
+      if (onlyFav) {
+        // 즐겨찾기 질문만 가져오기
+        try {
+          const { data } = await api.get('/api/interviews/questions/favorites');
+          questionData = data.data || [];
+          console.log('즐겨찾기 질문:', questionData);
+        } catch (err) {
+          if (err.response?.status === 401) {
+            console.log('인증 만료 - 로그인 페이지로 이동');
+            localStorage.clear();
+            nav('/signin');
+            return;
+          }
+          throw err;
+        }
+      } else {
+        // 일반 질문 검색
+        const params = {
+          keyword: keyword || undefined,
+          category: category !== 'all' ? category : undefined,
+          difficultyLevel: difficulty !== 'all' ? difficulty : undefined,
+          type: qType !== 'all' ? qType : undefined,
+          size: 100,
+        };
+        
+        try {
+          const { data } = await api.get('/api/interviews/questions/search', { params });
+          questionData = data.data?.content || [];
+          console.log('검색된 질문:', questionData);
+        } catch (err) {
+          if (err.response?.status === 401) {
+            console.log('인증 만료 - 로그인 페이지로 이동');
+            localStorage.clear();
+            nav('/signin');
+            return;
+          }
+          throw err;
+        }
+      }
+
+      setQuestions(questionData);
     } catch (e) {
-      console.error(e);
+      console.error('질문 검색 오류:', e);
       alert('질문을 불러오지 못했습니다.');
     } finally {
       setLoading(false);
     }
   };
-  useEffect(() => { fetchQuestions(); }, [keyword, category, difficulty, qType]); // eslint-disable-line
 
-  /* ── 즐겨찾기 ── */
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchQuestions();
+    }
+  }, [keyword, category, difficulty, qType, onlyFav, isAuthenticated]);
+
+  /* ── 즐겨찾기 토글 ── */
   const toggleFav = async (id) => {
     try {
       await api.post(`/api/interviews/questions/${id}/favorite`);
       setQuestions(prev => prev.map(q => (q.id === id ? { ...q, isFavorite: !q.isFavorite } : q)));
     } catch (e) {
-      console.error(e);
+      console.error('즐겨찾기 변경 오류:', e);
+      if (e.response?.status === 401) {
+        localStorage.clear();
+        nav('/signin');
+        return;
+      }
       alert('즐겨찾기 변경 실패');
     }
   };
@@ -108,7 +181,12 @@ function Questions() {
       const { data } = await api.get('/api/companies');
       setCompanies(data.data || []);
     } catch (e) {
-      console.error(e);
+      console.error('회사 목록 로드 오류:', e);
+      if (e.response?.status === 401) {
+        localStorage.clear();
+        nav('/signin');
+        return;
+      }
       alert('회사 목록을 가져올 수 없습니다.');
     }
   };
@@ -122,12 +200,17 @@ function Questions() {
       const { data } = await api.get(`/api/companies/${id}/positions`);
       setPositions(data.data || []);
     } catch (e) {
-      console.error(e);
+      console.error('포지션 목록 로드 오류:', e);
+      if (e.response?.status === 401) {
+        localStorage.clear();
+        nav('/signin');
+        return;
+      }
       alert('포지션 목록을 가져올 수 없습니다.');
     }
   };
 
-  /* ── AI 질문 생성 ── */
+  /* ── AI 질문 생성 (난이도 선택 기능 추가) ── */
   const generateQuestions = async () => {
     if (!positionId) return alert('포지션을 선택하세요.');
 
@@ -138,10 +221,15 @@ function Questions() {
       try {
         const resumeRes = await api.get('/api/resume');
         myResumeId = resumeRes.data.data.id;
+        console.log('내 이력서 ID:', myResumeId);
       } catch (e) {
         if (e.response?.status === 404) {
           alert('이력서를 먼저 작성해주세요.');
           setModalBusy(false);
+          return;
+        } else if (e.response?.status === 401) {
+          localStorage.clear();
+          nav('/signin');
           return;
         }
         throw e;
@@ -151,37 +239,38 @@ function Questions() {
       const pos = positions.find(p => p.id === Number(positionId));
       const positionName = pos?.title || pos?.name || '';
 
-      /* 3) AI를 사용한 면접 세션 생성 (질문 자동 생성) */
+      /* 3) 난이도가 포함된 AI 면접 세션 생성 */
       const createInterviewRes = await api.post('/api/interviews', {
         resumeId: myResumeId,
         positionId: Number(positionId),
-        title: `AI 생성 질문 - ${positionName} - ${new Date().toLocaleDateString()}`,
-        description: `${positionName} 포지션을 위한 맞춤형 면접 질문`,
+        title: `AI 생성 질문 - ${positionName} (난이도 ${selectedDifficulty}) - ${new Date().toLocaleDateString()}`,
+        description: `${positionName} 포지션을 위한 맞춤형 면접 질문 (난이도 ${selectedDifficulty}단계)`,
         type: "TEXT",
         mode: "PRACTICE",
-        useAI: true,  // AI 사용하여 질문 자동 생성
+        useAI: true,
         questionCount: questionCount,
-        difficultyLevel: 3,
-        categoryFilter: "기술면접"
+        difficultyLevel: selectedDifficulty, // 사용자가 선택한 난이도 사용
+        categoryFilter: category !== 'all' ? category : "기술면접",
+        expectedDurationMinutes: questionCount * 5, // 질문당 5분 예상
+        public: false
       });
       
-      const interviewId = createInterviewRes.data.data.id;
+      const interviewId = createInterviewRes.data.data?.id || createInterviewRes.data.id;
+      console.log('생성된 면접 ID:', interviewId);
 
       /* 4) 생성된 면접의 질문들 확인 */
       const { data: questionsData } = await api.get(`/api/interviews/${interviewId}/questions`);
       
       if (questionsData.data && questionsData.data.length > 0) {
-        alert(`${questionsData.data.length}개의 면접 질문이 생성되었습니다!`);
-        // 질문 목록 새로고침
+        alert(`${questionsData.data.length}개의 맞춤형 면접 질문이 생성되었습니다! (난이도 ${selectedDifficulty}단계)`);
         await fetchQuestions();
       } else {
-        // 질문이 자동 생성되지 않았다면, 기존 질문 풀에서 가져오기
         alert('AI 질문 생성 중... 잠시만 기다려주세요.');
         
-        // 카테고리와 난이도에 맞는 질문 검색
+        // 선택된 난이도로 기본 질문 검색
         const searchParams = {
-          category: '기술면접',
-          difficultyLevel: 3,
+          category: category !== 'all' ? category : '기술면접',
+          difficultyLevel: selectedDifficulty,
           size: questionCount
         };
         
@@ -190,10 +279,10 @@ function Questions() {
         });
         
         if (searchData.data?.content && searchData.data.content.length > 0) {
-          alert(`${searchData.data.content.length}개의 관련 질문을 찾았습니다!`);
+          alert(`${searchData.data.content.length}개의 관련 질문을 찾았습니다! (난이도 ${selectedDifficulty}단계)`);
           await fetchQuestions();
         } else {
-          alert('적합한 질문을 찾을 수 없습니다. 다른 조건으로 시도해주세요.');
+          alert('적합한 질문을 찾을 수 없습니다.');
         }
       }
       
@@ -201,35 +290,39 @@ function Questions() {
       setCompanyId(''); 
       setPositionId('');
       setQuestionCount(5);
+      setSelectedDifficulty(3);
     } catch (e) {
       console.error('질문 생성 오류:', e);
-      if (e.response?.status === 404) {
+      if (e.response?.status === 401) {
+        localStorage.clear();
+        nav('/signin');
+        return;
+      } else if (e.response?.status === 404) {
         alert('이력서를 먼저 작성해주세요.');
       } else {
-        // 대체 방안: 기존 질문 풀에서 랜덤하게 가져오기
-        try {
-          const { data: searchData } = await api.get('/api/interviews/questions/search', {
-            params: { size: questionCount }
-          });
-          
-          if (searchData.data?.content && searchData.data.content.length > 0) {
-            alert(`기본 질문 ${searchData.data.content.length}개를 준비했습니다!`);
-            await fetchQuestions();
-            setShowModal(false);
-          } else {
-            alert('질문 생성에 실패했습니다. 잠시 후 다시 시도해주세요.');
-          }
-        } catch (searchErr) {
-          alert('질문 생성에 실패했습니다.');
-        }
+        alert('질문 생성에 실패했습니다. 잠시 후 다시 시도해주세요.');
       }
     } finally {
       setModalBusy(false);
     }
   };
 
-  /* ── 화면에 보여줄 질문 after fav 필터 ── */
-  const list = questions.filter(q => (onlyFav ? q.isFavorite : true));
+  /* ── 화면에 보여줄 질문 ── */
+  const list = questions;
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col min-h-screen overflow-hidden">
+        <Header />
+        <main className="grow flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-gray-400">로그인이 필요합니다.</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   /* ─────── JSX ─────── */
   return (
@@ -238,7 +331,12 @@ function Questions() {
 
       <main className="grow">
         <section className="pt-32 pb-20 max-w-5xl mx-auto px-4 space-y-8">
-          <h1 className="h2">예상 질문 리스트</h1>
+          <div className="flex justify-between items-center">
+            <h1 className="h2">예상 질문 리스트</h1>
+            <div className="text-sm text-gray-400">
+              사용자: {userInfo?.email} (ID: {userInfo?.id})
+            </div>
+          </div>
 
           {/* 필터 & 새 질문 생성 버튼 */}
           <div className="bg-gray-800/50 p-6 rounded-xl space-y-4">
@@ -296,6 +394,7 @@ function Questions() {
                       <div className="flex gap-4 text-sm">
                         <span className="text-gray-400">{q.category}</span>
                         <span className="text-gray-400">난이도 {q.difficultyLevel}</span>
+                        <span className="text-gray-400">{q.type}</span>
                         {q.answer && (
                           <button 
                             onClick={() => toggleAnswer(q.id)}
@@ -365,11 +464,11 @@ function Questions() {
 
       <Footer />
 
-      {/* ───── AI 질문 생성 모달 ───── */}
+      {/* ───── AI 질문 생성 모달 (난이도 선택 기능 추가) ───── */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-800 w-full max-w-lg rounded-xl p-6 space-y-4">
-            <h2 className="text-xl text-white">AI 질문 생성</h2>
+            <h2 className="text-xl text-white">🤖 AI 맞춤형 질문 생성</h2>
             
             <p className="text-sm text-gray-400">
               선택한 포지션과 이력서를 기반으로 맞춤형 면접 질문을 생성합니다.
@@ -399,6 +498,30 @@ function Questions() {
               </select>
             </div>
 
+            {/* 난이도 선택 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">질문 난이도</label>
+              <div className="grid grid-cols-5 gap-2">
+                {[1, 2, 3, 4, 5].map(level => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => setSelectedDifficulty(level)}
+                    className={`p-2 rounded text-sm font-medium transition-colors ${
+                      selectedDifficulty === level
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    {level}단계
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                1단계: 기초 | 2단계: 초급 | 3단계: 중급 | 4단계: 고급 | 5단계: 전문가
+              </p>
+            </div>
+
             {/* 질문 개수 */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">질문 개수</label>
@@ -422,6 +545,7 @@ function Questions() {
                   setCompanyId('');
                   setPositionId('');
                   setQuestionCount(5);
+                  setSelectedDifficulty(3);
                 }} 
                 disabled={modalBusy}
               >
@@ -432,7 +556,7 @@ function Questions() {
                 onClick={generateQuestions} 
                 disabled={modalBusy || !positionId}
               >
-                {modalBusy ? '생성 중...' : '질문 생성'}
+                {modalBusy ? '생성 중...' : `${selectedDifficulty}단계 질문 생성`}
               </button>
             </div>
           </div>

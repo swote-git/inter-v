@@ -18,12 +18,12 @@ function SignIn() {
 
   // 로그인 상태 확인 (새로고침 시에도 유지)
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const accessToken = localStorage.getItem('accessToken') || localStorage.getItem('token');
     const storedUserId = localStorage.getItem('userId');
-    if (token && storedUserId) {
+    if (accessToken && storedUserId) {
       setIsLoggedIn(true);
       setUserId(storedUserId);
-      setToken(token);
+      setToken(accessToken);
     }
   }, []);
 
@@ -56,26 +56,34 @@ function SignIn() {
       if (!res.ok) throw new Error('로그인 실패');
 
       const data = await res.json();
-      console.log('로그인 응답 전체 데이터:', data);  // 전체 응답 데이터 확인
-      console.log('로그인 응답 data 필드:', data.data);  // data 필드 확인
+      console.log('로그인 응답 전체 데이터:', data);
 
-      const loginData = data.data; // ← 실제 로그인 정보
-      console.log('loginData 구조:', loginData);  // loginData 구조 확인
+      const loginData = data.data;
+      console.log('loginData 구조:', loginData);
 
-      // 토큰, 사용자 ID, 이메일 저장
-      localStorage.setItem('token', loginData.accessToken);
-      localStorage.setItem('userId', loginData.user.id);
+      // 토큰과 사용자 정보 저장 (두 키 모두에 저장하여 호환성 확보)
+      const accessToken = loginData.accessToken;
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('token', accessToken); // 기존 코드 호환성
+      localStorage.setItem('userId', loginData.user.id.toString());
       localStorage.setItem('userEmail', email);
+      
+      // refreshToken이 있다면 저장
+      if (loginData.refreshToken) {
+        localStorage.setItem('refreshToken', loginData.refreshToken);
+      }
 
-      console.log('localStorage에서 id:', localStorage.getItem('token'));
-      console.log('localStorage에서 token:', localStorage.getItem('token'));  // 저장 후 확인
+      console.log('저장된 토큰:', localStorage.getItem('accessToken'));
+      console.log('저장된 사용자 ID:', localStorage.getItem('userId'));
 
       setIsLoggedIn(true);
-      setUserId(loginData.user.id);
+      setUserId(loginData.user.id.toString());
       setError('');
-      // 로그인 성공 후
-      navigate('/'); // 메인 화면으로 이동
+      
+      // 로그인 성공 후 메인 화면으로 이동
+      navigate('/');
     } catch (err) {
+      console.error('로그인 오류:', err);
       setError('이메일 또는 비밀번호가 올바르지 않습니다.');
     }
   };
@@ -87,21 +95,38 @@ function SignIn() {
         credentials: 'include',
         headers: {
           'accept': '*/*',
+          'Authorization': `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('token')}`
         },
       });
+      
       if (res.ok) {
-        // 로컬 스토리지에서 토큰, 사용자 ID, 이메일 제거
+        // 모든 저장된 인증 정보 제거
+        localStorage.removeItem('accessToken');
         localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
         localStorage.removeItem('userId');
         localStorage.removeItem('userEmail');
 
         setIsLoggedIn(false);
         setUserId('');
+        setToken('');
         alert('로그아웃 되었습니다.');
         navigate('/signin');
       }
     } catch (err) {
-      alert('로그아웃에 실패했습니다.');
+      console.error('로그아웃 오류:', err);
+      // 로그아웃 실패해도 로컬 정보는 정리
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('userEmail');
+      
+      setIsLoggedIn(false);
+      setUserId('');
+      setToken('');
+      alert('로그아웃 처리되었습니다.');
+      navigate('/signin');
     }
   };
 
@@ -171,7 +196,6 @@ function SignIn() {
                             <input type="checkbox" className="form-checkbox" />
                             <span className="text-gray-400 ml-2">로그인 유지</span>
                           </label>
-
                         </div>
                       </div>
                     </div>
