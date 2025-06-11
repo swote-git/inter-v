@@ -5,7 +5,6 @@ import dev.swote.interv.domain.interview.entity.InterviewMode;
 import dev.swote.interv.domain.interview.entity.InterviewStatus;
 import dev.swote.interv.domain.interview.entity.InterviewType;
 import dev.swote.interv.domain.resume.dto.UserSimpleResponse;
-import dev.swote.interv.service.interview.dto.QuestionResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

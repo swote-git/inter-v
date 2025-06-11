@@ -1,6 +1,7 @@
 package dev.swote.interv.service.interview;
 
 import dev.swote.interv.domain.interview.dto.*;
+import dev.swote.interv.domain.interview.mapper.InterviewMapper;
 import dev.swote.interv.domain.interview.repository.*;
 import dev.swote.interv.exception.*;
 import lombok.extern.slf4j.Slf4j;
@@ -40,27 +41,33 @@ public class InterviewService {
     private final InterviewSimulationRepository interviewSimulationRepository;
 
     private final LlmService llmService;
+    private final InterviewMapper interviewMapper;
 
     @Transactional(readOnly = true)
-    public Page<InterviewSession> getUserInterviews(Integer userId, Pageable pageable) {
+    public Page<InterviewListResponse> getUserInterviews(Integer userId, Pageable pageable) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
-        return interviewSessionRepository.findByUser(user, pageable);
+
+        Page<InterviewSession> sessions = interviewSessionRepository.findByUser(user, pageable);
+        return sessions.map(interviewMapper::toListResponse);
     }
 
     @Transactional(readOnly = true)
-    public InterviewSession getInterviewById(Integer interviewId) {
-        return interviewSessionRepository.findById(interviewId)
+    public InterviewResponse getInterviewById(Integer interviewId) {
+        InterviewSession session = interviewSessionRepository.findById(interviewId)
                 .orElseThrow(() -> new InterviewSessionNotFoundException(interviewId));
+        return interviewMapper.toResponse(session);
     }
 
     @Transactional(readOnly = true)
-    public InterviewSession getInterviewByShareUrl(String shareUrl) {
-        return interviewSessionRepository.findByShareUrl(shareUrl)
+    public InterviewResponse getInterviewByShareUrl(String shareUrl) {
+        InterviewSession session = interviewSessionRepository.findByShareUrl(shareUrl)
                 .orElseThrow(() -> new InterviewSessionNotFoundException(shareUrl));
+        return interviewMapper.toResponse(session);
     }
+
     @Transactional
-    public InterviewSession createInterview(Integer userId, CreateInterviewRequest request) {
+    public InterviewResponse createInterview(Integer userId, CreateInterviewRequest request) {
         log.info("면접 생성 시작 - 사용자: {}, 모드: {}, 질문 수: {}", userId, request.getMode(), request.getQuestionCount());
 
         // 유저, 이력서, 포지션 처리
@@ -90,7 +97,7 @@ public class InterviewService {
         // 질문 생성
         List<Question> questions = generateOrRetrieveQuestions(request, resume, position, savedSession);
 
-        // 질문들에 세션 ID만 설정하고 저장 (컬렉션 조작 없음)
+        // 질문들에 세션 ID만 설정하고 저장
         int sequence = 1;
         for (Question question : questions) {
             question.setInterviewSession(savedSession);
@@ -100,10 +107,345 @@ public class InterviewService {
 
         log.info("면접 생성 완료 - ID: {}, 질문 수: {}", savedSession.getId(), questions.size());
 
-        // 최종적으로 질문이 포함된 세션을 반환하려면 다시 조회
-        return interviewSessionRepository.findById(savedSession.getId())
+        // 최종적으로 질문이 포함된 세션을 조회하여 DTO로 변환
+        InterviewSession finalSession = interviewSessionRepository.findById(savedSession.getId())
                 .orElseThrow(() -> new InterviewSessionNotFoundException(savedSession.getId()));
+
+        return interviewMapper.toResponse(finalSession);
     }
+
+    @Transactional
+    public void startInterview(Integer interviewId) {
+        log.info("면접 시작 - ID: {}", interviewId);
+
+        InterviewSession interviewSession = interviewSessionRepository.findById(interviewId)
+                .orElseThrow(() -> new InterviewSessionNotFoundException(interviewId));
+
+        interviewSession.setStatus(InterviewStatus.IN_PROGRESS);
+        interviewSession.setStartTime(LocalDateTime.now());
+        interviewSessionRepository.save(interviewSession);
+
+        log.info("면접 상태 변경 완료 - ID: {}, 상태: IN_PROGRESS", interviewId);
+    }
+
+    @Transactional
+    public void completeInterview(Integer interviewId) {
+        log.info("면접 완료 - ID: {}", interviewId);
+
+        InterviewSession interviewSession = interviewSessionRepository.findById(interviewId)
+                .orElseThrow(() -> new InterviewSessionNotFoundException(interviewId));
+
+        interviewSession.setStatus(InterviewStatus.COMPLETED);
+        interviewSession.setEndTime(LocalDateTime.now());
+        interviewSessionRepository.save(interviewSession);
+
+        log.info("면접 상태 변경 완료 - ID: {}, 상태: COMPLETED", interviewId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<QuestionResponse> getInterviewQuestions(Integer interviewId) {
+        InterviewSession interviewSession = interviewSessionRepository.findById(interviewId)
+                .orElseThrow(() -> new InterviewSessionNotFoundException(interviewId));
+
+        List<Question> questions = questionRepository.findByInterviewSessionOrderBySequenceAsc(interviewSession);
+        return questions.stream()
+                .map(interviewMapper::toQuestionResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public AnswerResponse submitTextAnswer(Integer questionId, String answerContent) {
+        log.info("텍스트 답변 제출 - 질문 ID: {}", questionId);
+
+        Question question = questionRepository.findById(questionId)
+                .orElseThrow(() -> new QuestionNotFoundException(questionId));
+
+        try {
+            // 개선된 LLM 서비스의 evaluateAnswer 메서드 사용
+            Resume resume = question.getInterviewSession().getResume();
+            Answer answer = llmService.evaluateAnswer(question, answerContent, resume);
+
+            Answer savedAnswer = answerRepository.save(answer);
+            log.info("답변 평가 완료 - 답변 ID: {}, 점수: 기술:{}, 의사소통:{}, 구조:{}",
+                    savedAnswer.getId(),
+                    savedAnswer.getTechnicalScore(),
+                    savedAnswer.getCommunicationScore(),
+                    savedAnswer.getStructureScore());
+
+            return interviewMapper.toAnswerResponse(savedAnswer);
+
+        } catch (Exception e) {
+            log.error("LLM 서비스 피드백 생성 실패 - 질문 ID: {}, 오류: {}", questionId, e.getMessage());
+
+            // 폴백: 기본 답변 생성
+            Answer fallbackAnswer = createFallbackAnswer(question, answerContent);
+            Answer savedAnswer = answerRepository.save(fallbackAnswer);
+            return interviewMapper.toAnswerResponse(savedAnswer);
+        }
+    }
+
+    @Transactional
+    public AnswerResponse submitAudioAnswer(Integer questionId, MultipartFile audioFile) {
+        log.info("음성 답변 제출 - 질문 ID: {}, 파일: {}", questionId, audioFile.getOriginalFilename());
+
+        Question question = questionRepository.findById(questionId)
+                .orElseThrow(() -> new QuestionNotFoundException(questionId));
+
+        // TODO: 음성 인식 기능 구현 필요
+        log.warn("음성 처리 기능이 아직 구현되지 않았습니다. 텍스트로 처리합니다.");
+
+        String transcribedText = "음성 답변이 제출되었습니다: " + audioFile.getOriginalFilename();
+
+        try {
+            Resume resume = question.getInterviewSession().getResume();
+            Answer answer = llmService.evaluateAnswer(question, transcribedText, resume);
+            answerRepository.save(answer);
+            return interviewMapper.toAnswerResponse(answer);
+        } catch (Exception e) {
+            log.error("음성 답변 LLM 서비스 피드백 생성 실패", e);
+            Answer fallbackAnswer = createFallbackAnswer(question, transcribedText);
+            answerRepository.save(fallbackAnswer);
+            return interviewMapper.toAnswerResponse(fallbackAnswer);
+        }
+    }
+
+    @Transactional
+    public String getQuestionAudio(Integer questionId) {
+        log.info("질문 음성 요청 - 질문 ID: {}", questionId);
+
+        Question question = questionRepository.findById(questionId)
+                .orElseThrow(() -> new QuestionNotFoundException(questionId));
+
+        // TODO: TTS 기능 구현 필요
+        log.warn("Text-to-speech 서비스가 아직 구현되지 않았습니다.");
+        return ""; // 실제로는 TTS 서비스를 통해 오디오 URL을 반환해야 함
+    }
+
+    @Transactional
+    public String generateShareUrl(Integer interviewId) {
+        InterviewSession interviewSession = interviewSessionRepository.findById(interviewId)
+                .orElseThrow(() -> new InterviewSessionNotFoundException(interviewId));
+
+        if (interviewSession.getShareUrl() == null) {
+            interviewSession.setShareUrl(UUID.randomUUID().toString());
+            interviewSessionRepository.save(interviewSession);
+        }
+
+        return interviewSession.getShareUrl();
+    }
+
+    @Transactional
+    public QuestionResponse getNextQuestion(Integer interviewId) {
+        log.info("다음 질문 요청 - 면접 ID: {}", interviewId);
+
+        InterviewSession session = interviewSessionRepository.findById(interviewId)
+                .orElseThrow(() -> new InterviewSessionNotFoundException(interviewId));
+
+        if (session.getCurrentQuestionIndex() >= session.getQuestionCount()) {
+            throw new InterviewStateException("더 이상 사용 가능한 질문이 없습니다");
+        }
+
+        List<Question> questions = questionRepository.findByInterviewSessionOrderBySequenceAsc(session);
+
+        if (questions.isEmpty()) {
+            throw new QuestionNotFoundException("error.question.not.found", "면접에 등록된 질문이 없습니다");
+        }
+
+        if (session.getCurrentQuestionIndex() >= questions.size()) {
+            throw new QuestionIndexOutOfBoundsException(session.getCurrentQuestionIndex(), questions.size());
+        }
+
+        Question nextQuestion = questions.get(session.getCurrentQuestionIndex());
+
+        // 현재 질문 인덱스 업데이트
+        session.setCurrentQuestionIndex(session.getCurrentQuestionIndex() + 1);
+        interviewSessionRepository.save(session);
+
+        log.info("다음 질문 반환 - 질문 ID: {}, 순서: {}", nextQuestion.getId(), nextQuestion.getSequence());
+        return interviewMapper.toQuestionResponse(nextQuestion);
+    }
+
+    @Transactional
+    public void updateInterviewTime(Integer interviewId, Integer timeInSeconds) {
+        InterviewSession session = interviewSessionRepository.findById(interviewId)
+                .orElseThrow(() -> new InterviewSessionNotFoundException(interviewId));
+
+        session.setTotalTimeSeconds(timeInSeconds);
+        interviewSessionRepository.save(session);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<QuestionResponse> searchQuestions(
+            String category,
+            Integer difficultyLevel,
+            QuestionType type,
+            String keyword,
+            Pageable pageable) {
+
+        Page<Question> questions = questionRepository.findQuestionsByFilters(
+                category,
+                difficultyLevel,
+                type,
+                keyword,
+                pageable
+        );
+
+        return questions.map(interviewMapper::toQuestionResponse);
+    }
+
+    @Transactional
+    public void toggleFavoriteQuestion(Integer userId, Integer questionId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        Question question = questionRepository.findById(questionId)
+                .orElseThrow(() -> new QuestionNotFoundException(questionId));
+
+        if (user.getFavoritedQuestions().contains(question)) {
+            user.getFavoritedQuestions().remove(question);
+            log.info("즐겨찾기에서 질문 제거 - 사용자: {}, 질문: {}", userId, questionId);
+        } else {
+            user.getFavoritedQuestions().add(question);
+            log.info("즐겨찾기에 질문 추가 - 사용자: {}, 질문: {}", userId, questionId);
+        }
+
+        userRepository.save(user);
+    }
+
+    @Transactional(readOnly = true)
+    public List<QuestionResponse> getFavoriteQuestions(Integer userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        return user.getFavoritedQuestions().stream()
+                .map(interviewMapper::toQuestionResponse)
+                .collect(Collectors.toList());
+    }
+
+    // 엔티티 반환이 필요한 내부 메서드들
+    public User getUserById(Integer id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException(id));
+    }
+
+    public Resume getResumeById(Integer id) {
+        return resumeRepository.findById(id).orElse(null);
+    }
+
+    public Position getPositionById(Integer id) {
+        return positionRepository.findById(id).orElse(null);
+    }
+
+    public Question getQuestionById(Integer questionId) {
+        return questionRepository.findById(questionId)
+                .orElseThrow(() -> new QuestionNotFoundException(questionId));
+    }
+
+    /**
+     * 면접에 질문 추가 (DTO 반환)
+     */
+    @Transactional
+    public QuestionResponse addQuestionToInterview(Integer interviewId, Question question) {
+        log.info("면접 {}에 질문 추가: {}", interviewId, question.getContent());
+
+        InterviewSession interview = interviewSessionRepository.findById(interviewId)
+                .orElseThrow(() -> new InterviewSessionNotFoundException(interviewId));
+
+        question.setInterviewSession(interview);
+        question.setSequence(getNextQuestionSequence(interviewId));
+
+        Question savedQuestion = questionRepository.save(question);
+        log.info("질문 추가 완료 - 질문 ID: {}, 순서: {}", savedQuestion.getId(), savedQuestion.getSequence());
+
+        return interviewMapper.toQuestionResponse(savedQuestion);
+    }
+
+    /**
+     * 답변 평가 결과 저장 (FastAPI에서 받은 평가 결과 처리)
+     */
+    @Transactional
+    public void saveAnswerEvaluation(Integer answerId, AnswerEvaluation evaluationDto) {
+        log.info("답변 {} 평가 결과 저장: 총점 {}", answerId, evaluationDto.getTotalScore());
+
+        Answer answer = answerRepository.findById(answerId)
+                .orElseThrow(() -> new AnswerNotFoundException(answerId));
+
+        // DTO를 Entity로 변환
+        AnswerEvaluation evalEntity = AnswerEvaluation.builder()
+                .answer(answer)
+                .relevance(evaluationDto.getRelevance())
+                .specificity(evaluationDto.getSpecificity())
+                .practicality(evaluationDto.getPracticality())
+                .validity(evaluationDto.getValidity())
+                .totalScore(evaluationDto.getTotalScore())
+                .feedback(evaluationDto.getFeedback())
+                .evaluationType("AI_FASTAPI") // FastAPI AI 평가 표시
+                .build();
+
+        answerEvaluationRepository.save(evalEntity);
+        log.info("답변 평가 저장 완료 - 평가 ID: {}", evalEntity.getId());
+    }
+
+    /**
+     * 면접 시뮬레이션 결과 저장
+     */
+    @Transactional
+    public void saveSimulationResult(Integer interviewId, InterviewSimulationResult result) {
+        log.info("면접 {} 시뮬레이션 결과 저장", interviewId);
+
+        InterviewSession interview = interviewSessionRepository.findById(interviewId)
+                .orElseThrow(() -> new InterviewSessionNotFoundException(interviewId));
+
+        InterviewSimulation simulation = InterviewSimulation.builder()
+                .interviewSession(interview)
+                .generatedQuestions(String.join("|||", result.getGeneratedQuestions()))
+                .selectedQuestion(result.getSelectedQuestion())
+                .userAnswer(result.getUserAnswer())
+                .build();
+
+        // FastAPI에서 받은 평가 결과 저장
+        if (result.getEvaluationResult() != null) {
+            AnswerEvaluation eval = result.getEvaluationResult();
+            simulation.setEvaluationRelevance(eval.getRelevance());
+            simulation.setEvaluationSpecificity(eval.getSpecificity());
+            simulation.setEvaluationPracticality(eval.getPracticality());
+            simulation.setEvaluationValidity(eval.getValidity());
+            simulation.setEvaluationTotalScore(eval.getTotalScore());
+            simulation.setEvaluationFeedback(eval.getFeedback());
+        }
+
+        InterviewSimulation savedSimulation = interviewSimulationRepository.save(simulation);
+        log.info("시뮬레이션 결과 저장 완료 - 시뮬레이션 ID: {}", savedSimulation.getId());
+    }
+
+    /**
+     * FastAPI 서버 연결 상태 확인
+     */
+    public boolean checkLlmServiceHealth() {
+        try {
+            // 간단한 테스트 질문 생성 시도
+            Resume testResume = new Resume();
+            testResume.setContent("테스트 이력서");
+
+            Position testPosition = new Position();
+            testPosition.setName("테스트 포지션");
+
+            List<Question> testQuestions = llmService.generateInterviewQuestions(testResume, testPosition, 1);
+
+            boolean isHealthy = testQuestions != null && !testQuestions.isEmpty();
+            log.info("LLM 서비스 상태 확인: {}", isHealthy ? "정상" : "비정상");
+
+            return isHealthy;
+        } catch (Exception e) {
+            log.error("LLM 서비스 상태 확인 실패: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    // ================================================================================
+    // Private Helper Methods (기존 메서드들 유지)
+    // ================================================================================
+
     /**
      * 사용자 조회 또는 생성
      */
@@ -160,11 +502,13 @@ public class InterviewService {
 
         return position;
     }
+
     private Position createDefaultPosition() {
         Position defaultPosition = new Position();
         defaultPosition.setName("백엔드 개발자");
         return positionRepository.save(defaultPosition);
     }
+
     /**
      * 질문 생성 또는 조회
      */
@@ -261,103 +605,6 @@ public class InterviewService {
     }
 
     /**
-     * 질문을 세션에 할당
-     */
-    private void assignQuestionsToSession(List<Question> questions, InterviewSession session) {
-        // 기존 questions 컬렉션 초기화 (새 리스트로 교체하지 않고 clear 사용)
-        if (session.getQuestions() == null) {
-            session.setQuestions(new ArrayList<>());
-        } else {
-            // 기존 질문들 삭제 (orphan removal 때문에 직접 삭제 필요)
-            session.getQuestions().clear();
-        }
-
-        int sequence = 1;
-        for (Question question : questions) {
-            // 양방향 관계 설정
-            question.setInterviewSession(session);
-            question.setSequence(sequence++);
-
-            // 질문을 먼저 저장
-            Question savedQuestion = questionRepository.save(question);
-
-            // 저장된 질문을 컬렉션에 추가 (새 리스트로 교체하지 않음)
-            session.getQuestions().add(savedQuestion);
-        }
-
-        // 세션 저장 (컬렉션 변경사항 반영)
-        interviewSessionRepository.save(session);
-
-        log.info("질문 할당 완료 - 세션 ID: {}, 질문 수: {}", session.getId(), questions.size());
-    }
-
-    @Transactional
-    public void startInterview(Integer interviewId) {
-        log.info("면접 시작 - ID: {}", interviewId);
-
-        InterviewSession interviewSession = interviewSessionRepository.findById(interviewId)
-                .orElseThrow(() -> new InterviewSessionNotFoundException(interviewId));
-
-        interviewSession.setStatus(InterviewStatus.IN_PROGRESS);
-        interviewSession.setStartTime(LocalDateTime.now());
-        interviewSessionRepository.save(interviewSession);
-
-        log.info("면접 상태 변경 완료 - ID: {}, 상태: IN_PROGRESS", interviewId);
-    }
-
-    @Transactional
-    public void completeInterview(Integer interviewId) {
-        log.info("면접 완료 - ID: {}", interviewId);
-
-        InterviewSession interviewSession = interviewSessionRepository.findById(interviewId)
-                .orElseThrow(() -> new InterviewSessionNotFoundException(interviewId));
-
-        interviewSession.setStatus(InterviewStatus.COMPLETED);
-        interviewSession.setEndTime(LocalDateTime.now());
-        interviewSessionRepository.save(interviewSession);
-
-        log.info("면접 상태 변경 완료 - ID: {}, 상태: COMPLETED", interviewId);
-    }
-
-    @Transactional(readOnly = true)
-    public List<Question> getInterviewQuestions(Integer interviewId) {
-        InterviewSession interviewSession = interviewSessionRepository.findById(interviewId)
-                .orElseThrow(() -> new InterviewSessionNotFoundException(interviewId));
-
-        return questionRepository.findByInterviewSessionOrderBySequenceAsc(interviewSession);
-    }
-
-    @Transactional
-    public Answer submitTextAnswer(Integer questionId, String answerContent) {
-        log.info("텍스트 답변 제출 - 질문 ID: {}", questionId);
-
-        Question question = questionRepository.findById(questionId)
-                .orElseThrow(() -> new QuestionNotFoundException(questionId));
-
-        try {
-            // 개선된 LLM 서비스의 evaluateAnswer 메서드 사용
-            Resume resume = question.getInterviewSession().getResume();
-            Answer answer = llmService.evaluateAnswer(question, answerContent, resume);
-
-            Answer savedAnswer = answerRepository.save(answer);
-            log.info("답변 평가 완료 - 답변 ID: {}, 점수: 기술:{}, 의사소통:{}, 구조:{}",
-                    savedAnswer.getId(),
-                    savedAnswer.getTechnicalScore(),
-                    savedAnswer.getCommunicationScore(),
-                    savedAnswer.getStructureScore());
-
-            return savedAnswer;
-
-        } catch (Exception e) {
-            log.error("LLM 서비스 피드백 생성 실패 - 질문 ID: {}, 오류: {}", questionId, e.getMessage());
-
-            // 폴백: 기본 답변 생성
-            Answer fallbackAnswer = createFallbackAnswer(question, answerContent);
-            return answerRepository.save(fallbackAnswer);
-        }
-    }
-
-    /**
      * 폴백 답변 생성
      */
     private Answer createFallbackAnswer(Question question, String answerContent) {
@@ -373,263 +620,11 @@ public class InterviewService {
                 .build();
     }
 
-    @Transactional
-    public Answer submitAudioAnswer(Integer questionId, MultipartFile audioFile) {
-        log.info("음성 답변 제출 - 질문 ID: {}, 파일: {}", questionId, audioFile.getOriginalFilename());
-
-        Question question = questionRepository.findById(questionId)
-                .orElseThrow(() -> new QuestionNotFoundException(questionId));
-
-        // TODO: 음성 인식 기능 구현 필요
-        log.warn("음성 처리 기능이 아직 구현되지 않았습니다. 텍스트로 처리합니다.");
-
-        String transcribedText = "음성 답변이 제출되었습니다: " + audioFile.getOriginalFilename();
-
-        try {
-            Resume resume = question.getInterviewSession().getResume();
-            Answer answer = llmService.evaluateAnswer(question, transcribedText, resume);
-            return answerRepository.save(answer);
-        } catch (Exception e) {
-            log.error("음성 답변 LLM 서비스 피드백 생성 실패", e);
-            Answer fallbackAnswer = createFallbackAnswer(question, transcribedText);
-            return answerRepository.save(fallbackAnswer);
-        }
-    }
-
-    @Transactional
-    public String getQuestionAudio(Integer questionId) {
-        log.info("질문 음성 요청 - 질문 ID: {}", questionId);
-
-        Question question = questionRepository.findById(questionId)
-                .orElseThrow(() -> new QuestionNotFoundException(questionId));
-
-        // TODO: TTS 기능 구현 필요
-        log.warn("Text-to-speech 서비스가 아직 구현되지 않았습니다.");
-        return ""; // 실제로는 TTS 서비스를 통해 오디오 URL을 반환해야 함
-    }
-
-    @Transactional
-    public String generateShareUrl(Integer interviewId) {
-        InterviewSession interviewSession = interviewSessionRepository.findById(interviewId)
-                .orElseThrow(() -> new InterviewSessionNotFoundException(interviewId));
-
-        if (interviewSession.getShareUrl() == null) {
-            interviewSession.setShareUrl(UUID.randomUUID().toString());
-            interviewSessionRepository.save(interviewSession);
-        }
-
-        return interviewSession.getShareUrl();
-    }
-
-    @Transactional
-    public Question getNextQuestion(Integer interviewId) {
-        log.info("다음 질문 요청 - 면접 ID: {}", interviewId);
-
-        InterviewSession session = interviewSessionRepository.findById(interviewId)
-                .orElseThrow(() -> new InterviewSessionNotFoundException(interviewId));
-
-        if (session.getCurrentQuestionIndex() >= session.getQuestionCount()) {
-            throw new InterviewStateException("더 이상 사용 가능한 질문이 없습니다");
-        }
-
-        List<Question> questions = questionRepository.findByInterviewSessionOrderBySequenceAsc(session);
-
-        if (questions.isEmpty()) {
-            throw new QuestionNotFoundException("error.question.not.found", "면접에 등록된 질문이 없습니다");
-        }
-
-        if (session.getCurrentQuestionIndex() >= questions.size()) {
-            throw new QuestionIndexOutOfBoundsException(session.getCurrentQuestionIndex(), questions.size());
-        }
-
-        Question nextQuestion = questions.get(session.getCurrentQuestionIndex());
-
-        // 현재 질문 인덱스 업데이트
-        session.setCurrentQuestionIndex(session.getCurrentQuestionIndex() + 1);
-        interviewSessionRepository.save(session);
-
-        log.info("다음 질문 반환 - 질문 ID: {}, 순서: {}", nextQuestion.getId(), nextQuestion.getSequence());
-        return nextQuestion;
-    }
-
-    @Transactional
-    public void updateInterviewTime(Integer interviewId, Integer timeInSeconds) {
-        InterviewSession session = interviewSessionRepository.findById(interviewId)
-                .orElseThrow(() -> new InterviewSessionNotFoundException(interviewId));
-
-        session.setTotalTimeSeconds(timeInSeconds);
-        interviewSessionRepository.save(session);
-    }
-
-    @Transactional(readOnly = true)
-    public Page<Question> searchQuestions(
-            String category,
-            Integer difficultyLevel,
-            QuestionType type,
-            String keyword,
-            Pageable pageable) {
-
-        return questionRepository.findQuestionsByFilters(
-                category,
-                difficultyLevel,
-                type,
-                keyword,
-                pageable
-        );
-    }
-
-    @Transactional
-    public void toggleFavoriteQuestion(Integer userId, Integer questionId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
-
-        Question question = questionRepository.findById(questionId)
-                .orElseThrow(() -> new QuestionNotFoundException(questionId));
-
-        if (user.getFavoritedQuestions().contains(question)) {
-            user.getFavoritedQuestions().remove(question);
-            log.info("즐겨찾기에서 질문 제거 - 사용자: {}, 질문: {}", userId, questionId);
-        } else {
-            user.getFavoritedQuestions().add(question);
-            log.info("즐겨찾기에 질문 추가 - 사용자: {}, 질문: {}", userId, questionId);
-        }
-
-        userRepository.save(user);
-    }
-
-    @Transactional(readOnly = true)
-    public List<Question> getFavoriteQuestions(Integer userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
-
-        return new ArrayList<>(user.getFavoritedQuestions());
-    }
-
-    public User getUserById(Integer id) {
-        return userRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException(id));
-    }
-
-    public Resume getResumeById(Integer id) {
-        return resumeRepository.findById(id).orElse(null);
-    }
-
-    public Position getPositionById(Integer id) {
-        return positionRepository.findById(id).orElse(null);
-    }
-
-    /**
-     * 면접에 질문 추가
-     */
-    @Transactional
-    public Question addQuestionToInterview(Integer interviewId, Question question) {
-        log.info("면접 {}에 질문 추가: {}", interviewId, question.getContent());
-
-        InterviewSession interview = getInterviewById(interviewId);
-
-        question.setInterviewSession(interview);
-        question.setSequence(getNextQuestionSequence(interviewId));
-
-        Question savedQuestion = questionRepository.save(question);
-        log.info("질문 추가 완료 - 질문 ID: {}, 순서: {}", savedQuestion.getId(), savedQuestion.getSequence());
-
-        return savedQuestion;
-    }
-
     /**
      * 다음 질문 순서 가져오기
      */
     private Integer getNextQuestionSequence(Integer interviewId) {
         Integer maxSequence = questionRepository.findMaxSequenceByInterviewId(interviewId);
         return maxSequence != null ? maxSequence + 1 : 1;
-    }
-
-    /**
-     * 질문 ID로 질문 조회
-     */
-    public Question getQuestionById(Integer questionId) {
-        return questionRepository.findById(questionId)
-                .orElseThrow(() -> new QuestionNotFoundException(questionId));
-    }
-
-    /**
-     * 답변 평가 결과 저장 (FastAPI에서 받은 평가 결과 처리)
-     */
-    @Transactional
-    public void saveAnswerEvaluation(Integer answerId, AnswerEvaluation evaluationDto) {
-        log.info("답변 {} 평가 결과 저장: 총점 {}", answerId, evaluationDto.getTotalScore());
-
-        Answer answer = answerRepository.findById(answerId)
-                .orElseThrow(() -> new AnswerNotFoundException(answerId));
-
-        // DTO를 Entity로 변환
-        AnswerEvaluation evalEntity = AnswerEvaluation.builder()
-                .answer(answer)
-                .relevance(evaluationDto.getRelevance())
-                .specificity(evaluationDto.getSpecificity())
-                .practicality(evaluationDto.getPracticality())
-                .validity(evaluationDto.getValidity())
-                .totalScore(evaluationDto.getTotalScore())
-                .feedback(evaluationDto.getFeedback())
-                .evaluationType("AI_FASTAPI") // FastAPI AI 평가 표시
-                .build();
-
-        answerEvaluationRepository.save(evalEntity);
-        log.info("답변 평가 저장 완료 - 평가 ID: {}", evalEntity.getId());
-    }
-
-    /**
-     * 면접 시뮬레이션 결과 저장
-     */
-    @Transactional
-    public void saveSimulationResult(Integer interviewId, InterviewSimulationResult result) {
-        log.info("면접 {} 시뮬레이션 결과 저장", interviewId);
-
-        InterviewSession interview = getInterviewById(interviewId);
-
-        InterviewSimulation simulation = InterviewSimulation.builder()
-                .interviewSession(interview)
-                .generatedQuestions(String.join("|||", result.getGeneratedQuestions()))
-                .selectedQuestion(result.getSelectedQuestion())
-                .userAnswer(result.getUserAnswer())
-                .build();
-
-        // FastAPI에서 받은 평가 결과 저장
-        if (result.getEvaluationResult() != null) {
-            AnswerEvaluation eval = result.getEvaluationResult();
-            simulation.setEvaluationRelevance(eval.getRelevance());
-            simulation.setEvaluationSpecificity(eval.getSpecificity());
-            simulation.setEvaluationPracticality(eval.getPracticality());
-            simulation.setEvaluationValidity(eval.getValidity());
-            simulation.setEvaluationTotalScore(eval.getTotalScore());
-            simulation.setEvaluationFeedback(eval.getFeedback());
-        }
-
-        InterviewSimulation savedSimulation = interviewSimulationRepository.save(simulation);
-        log.info("시뮬레이션 결과 저장 완료 - 시뮬레이션 ID: {}", savedSimulation.getId());
-    }
-
-    /**
-     * FastAPI 서버 연결 상태 확인
-     */
-    public boolean checkLlmServiceHealth() {
-        try {
-            // 간단한 테스트 질문 생성 시도
-            Resume testResume = new Resume();
-            testResume.setContent("테스트 이력서");
-
-            Position testPosition = new Position();
-            testPosition.setName("테스트 포지션");
-
-            List<Question> testQuestions = llmService.generateInterviewQuestions(testResume, testPosition, 1);
-
-            boolean isHealthy = testQuestions != null && !testQuestions.isEmpty();
-            log.info("LLM 서비스 상태 확인: {}", isHealthy ? "정상" : "비정상");
-
-            return isHealthy;
-        } catch (Exception e) {
-            log.error("LLM 서비스 상태 확인 실패: {}", e.getMessage());
-            return false;
-        }
     }
 }
