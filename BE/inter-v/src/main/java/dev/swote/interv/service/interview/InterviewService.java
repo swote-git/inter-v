@@ -59,23 +59,17 @@ public class InterviewService {
         return interviewSessionRepository.findByShareUrl(shareUrl)
                 .orElseThrow(() -> new InterviewSessionNotFoundException(shareUrl));
     }
-
     @Transactional
     public InterviewSession createInterview(Integer userId, CreateInterviewRequest request) {
         log.info("면접 생성 시작 - 사용자: {}, 모드: {}, 질문 수: {}", userId, request.getMode(), request.getQuestionCount());
 
-        // 유저 처리 (DB 없을 경우 더미 유저 생성)
+        // 유저, 이력서, 포지션 처리
         User user = getOrCreateUser(userId);
-
-        // 이력서 처리
         Resume resume = getOrCreateResume(request.getResumeId());
-
-        // 포지션 처리
         Position position = getOrCreatePosition(request.getPositionId());
 
-        // 세션 생성
+        // 세션 생성 (질문 없이)
         String shareUrl = UUID.randomUUID().toString();
-
         InterviewSession interviewSession = InterviewSession.builder()
                 .user(user)
                 .resume(resume)
@@ -90,18 +84,26 @@ public class InterviewService {
                 .totalTimeSeconds(0)
                 .build();
 
-        interviewSession = interviewSessionRepository.save(interviewSession);
+        // 세션 먼저 저장
+        InterviewSession savedSession = interviewSessionRepository.save(interviewSession);
 
-        // 질문 생성 또는 조회
-        List<Question> questions = generateOrRetrieveQuestions(request, resume, position, interviewSession);
+        // 질문 생성
+        List<Question> questions = generateOrRetrieveQuestions(request, resume, position, savedSession);
 
-        // 질문 순서 및 세션 설정
-        assignQuestionsToSession(questions, interviewSession);
+        // 질문들에 세션 ID만 설정하고 저장 (컬렉션 조작 없음)
+        int sequence = 1;
+        for (Question question : questions) {
+            question.setInterviewSession(savedSession);
+            question.setSequence(sequence++);
+            questionRepository.save(question);
+        }
 
-        log.info("면접 생성 완료 - ID: {}, 질문 수: {}", interviewSession.getId(), questions.size());
-        return interviewSession;
+        log.info("면접 생성 완료 - ID: {}, 질문 수: {}", savedSession.getId(), questions.size());
+
+        // 최종적으로 질문이 포함된 세션을 반환하려면 다시 조회
+        return interviewSessionRepository.findById(savedSession.getId())
+                .orElseThrow(() -> new InterviewSessionNotFoundException(savedSession.getId()));
     }
-
     /**
      * 사용자 조회 또는 생성
      */
@@ -141,19 +143,28 @@ public class InterviewService {
     private Position getOrCreatePosition(Integer positionId) {
         if (positionId == null) {
             log.info("포지션 ID가 제공되지 않음. 기본 포지션 생성");
-            Position defaultPosition = new Position();
-            defaultPosition.setName("백엔드 개발자");
-            return positionRepository.save(defaultPosition);
+            return createDefaultPosition();
         }
 
-        return positionRepository.findById(positionId).orElseGet(() -> {
+        Position position = positionRepository.findById(positionId).orElseGet(() -> {
             log.warn("포지션을 찾을 수 없음 (ID: {}). 기본 포지션 생성", positionId);
-            Position defaultPosition = new Position();
-            defaultPosition.setName("백엔드 개발자");
-            return positionRepository.save(defaultPosition);
+            return createDefaultPosition();
         });
-    }
 
+        // DB에서 조회한 Position의 name이 null인 경우 처리
+        if (position.getName() == null || position.getName().trim().isEmpty()) {
+            log.warn("포지션 name이 비어있음 (ID: {}). 기본값으로 설정", position.getId());
+            position.setName("백엔드 개발자");
+            position = positionRepository.save(position);
+        }
+
+        return position;
+    }
+    private Position createDefaultPosition() {
+        Position defaultPosition = new Position();
+        defaultPosition.setName("백엔드 개발자");
+        return positionRepository.save(defaultPosition);
+    }
     /**
      * 질문 생성 또는 조회
      */
@@ -253,13 +264,31 @@ public class InterviewService {
      * 질문을 세션에 할당
      */
     private void assignQuestionsToSession(List<Question> questions, InterviewSession session) {
+        // 기존 questions 컬렉션 초기화 (새 리스트로 교체하지 않고 clear 사용)
+        if (session.getQuestions() == null) {
+            session.setQuestions(new ArrayList<>());
+        } else {
+            // 기존 질문들 삭제 (orphan removal 때문에 직접 삭제 필요)
+            session.getQuestions().clear();
+        }
+
         int sequence = 1;
         for (Question question : questions) {
+            // 양방향 관계 설정
             question.setInterviewSession(session);
             question.setSequence(sequence++);
-            questionRepository.save(question);
+
+            // 질문을 먼저 저장
+            Question savedQuestion = questionRepository.save(question);
+
+            // 저장된 질문을 컬렉션에 추가 (새 리스트로 교체하지 않음)
+            session.getQuestions().add(savedQuestion);
         }
-        session.setQuestions(questions);
+
+        // 세션 저장 (컬렉션 변경사항 반영)
+        interviewSessionRepository.save(session);
+
+        log.info("질문 할당 완료 - 세션 ID: {}, 질문 수: {}", session.getId(), questions.size());
     }
 
     @Transactional

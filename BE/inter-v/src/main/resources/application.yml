@@ -116,7 +116,7 @@ spring:
         format_sql: true
 
 jwt:
-  secret: 
+  secret:
   access-token-validity: 3600000
   refresh-token-validity: 604800000
 
@@ -215,7 +215,7 @@ logging:
 # LLM API 설정 - 업데이트됨
 llm:
   api:
-    url: ${LLM_API_URL:https://ml.interv.swote.dev:8000}  # ML 서버 URL
+    url: ${LLM_API_URL:https://ml.interv.swote.dev}  # ML 서버 URL
     key: ${LLM_API_KEY:dummy-api-key}         # ML 서버 API 키 (필요시)
     timeout:
       connect: ${LLM_API_CONNECT_TIMEOUT:30}  # 연결 타임아웃 (초)

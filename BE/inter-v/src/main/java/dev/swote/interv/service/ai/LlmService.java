@@ -125,12 +125,23 @@ public class LlmService {
      */
     private Map<String, Object> createQuestionRequest(Resume resume, Position position, int count) {
         Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("resume", resume.getContent());
-        requestBody.put("position", position.getName());
+
+        // Resume content null 체크
+        String resumeContent = (resume != null && resume.getContent() != null)
+                ? resume.getContent()
+                : "이력서 정보가 없습니다.";
+
+        // Position name null 체크 및 기본값 설정
+        String positionName = (position != null && position.getName() != null && !position.getName().trim().isEmpty())
+                ? position.getName()
+                : "백엔드 개발자";
+
+        requestBody.put("resume", resumeContent);
+        requestBody.put("position", positionName);
         requestBody.put("question_count", count);
 
         log.debug("질문 생성 요청 바디: resume 길이={}, position={}, count={}",
-                resume.getContent().length(), position.getName(), count);
+                resumeContent.length(), positionName, count);
         return requestBody;
     }
 
